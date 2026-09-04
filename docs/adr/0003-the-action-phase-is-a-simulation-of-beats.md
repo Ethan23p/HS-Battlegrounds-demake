@@ -2,44 +2,43 @@
 status: accepted
 ---
 
-# The Action Phase is a simulation of Beats, not a sequence of actions
+# The Action Phase is a left-to-right sweep of Beats
 
 In Battlegrounds, combat alternates: one side attacks, then the other, with a coin flip
-breaking the tie over who starts. Whether a Minion ever acts depends on whether something
+breaking the tie over who starts. Whether a Unit ever acts depends on whether something
 killed it first, so outcomes hinge on an ordering players cannot fully see.
 
-We resolve the Action Phase in **Beats** instead. Everything resolving within a Beat
-resolves simultaneously, against the state at the Beat's opening; deaths apply at its end;
-Beats are strictly ordered. The framing matters as much as the mechanism: an auto-battler's
-combat is *a simulation playing out*, and decomposing it into discrete per-minion actions
-is a holdover from card games and tabletop RPGs, not something the form requires. A Beat
-is a slice of simulated time, not a turn anybody takes.
+Instead, the Action Phase **sweeps Slot by Slot from left to right**. At each Slot, the two
+Units facing each other resolve **synchronously**. That moment is a **Beat**.
 
-These two ideas are compatible and it is worth saying why, since they can read as
-contradictory: the narrative is sequential (Beat follows Beat, one moment at a time) while
-resolution within any single moment is simultaneous. You watch it unfold; nobody goes first.
+Two ideas are doing work here and they are easy to confuse. The first is a framing: an
+auto-battler's combat is *a simulation playing out*, and carving it into discrete
+per-unit actions is a holdover from card games and tabletop, not something the form
+demands. The second is the mechanism that serves it: a positional sweep, so the narrative
+is sequential (Beat follows Beat, left to right, one moment at a time) while resolution
+within any single moment is symmetric. You watch it unfold; in any given Slot, nobody
+goes first.
 
 ## Consequences
 
 - **The opening coin flip disappears**, along with a large share of the Action Phase's
   variance. Much of Battlegrounds' randomness is really just "who swung first".
-- **Trades become mutual.** Two 3/3s kill each other; neither side gains by acting first,
-  because there is no first. This changes the value of nearly every stat line, and
-  intuitions carried from Battlegrounds about what makes a good Board are suspect.
-- **A Beat is a pure function** from world-state to world-state, which is dramatically
-  easier to test, explain, and render than an interleaved attack sequence — and directly
-  serves the goal of unambiguous resolution.
-- **The renderer inherits a natural pacing.** Beats are what a frontend animates, one at a
-  time, without the engine knowing anything about display.
-- Keyword semantics need re-derivation rather than translation. Divine Shield, Poisonous
-  and Windfury were balanced against sequential resolution; at minimum Poisonous is
-  markedly stronger when every exchange is mutual, and Windfury's "attacks twice" has no
-  turn to take twice and must mean something else.
+- **There is no targeting decision at all.** Slot *i* faces Slot *i*. Every scrap of
+  target-selection randomness leaves the game, which is the strongest possible service to
+  unambiguous resolution — and it makes **ordering the Party the central skill** of the
+  Prep Phase, giving the shopping half real depth with no extra machinery.
+- **Trades become mutual.** Two 3/3s facing each other kill each other. Intuitions carried
+  from Battlegrounds about what makes a good board are suspect.
+- **A Beat is a pure function** from world-state to world-state, trivially testable, and
+  it hands the frontend its pacing: a renderer animates Beats, in order, knowing nothing
+  else.
+- **Taunt has nothing left to do.** The keyword exists to constrain a choice of target, and
+  there is no choice. It needs reinventing or dropping. Windfury's "attacks twice" has no
+  turn to take twice and likewise needs a new meaning.
+- Poisonous is markedly stronger when every exchange is mutual.
 
 ## Open
 
-Whether every Minion acts in every Beat, or whether Minions have differing rates so that a
-Beat advances a clock and only what has come due resolves. The second reading follows more
-naturally from "simulation rather than actions" and would give Windfury an obvious meaning
-(a faster rate), at the cost of introducing time as a dimension. Unresolved, and it is the
-gate on v0.1.
+Whether the sweep repeats after Slot 8 or the Action Phase is a single pass; when deaths
+are applied — at the end of the Beat that caused them, or the end of the sweep; and what
+happens in a Slot where only one side has a Unit.

@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0006
 ---
 
 # Two Seats, not eight
@@ -21,3 +21,12 @@ interesting.
   revisit: Seats are indexed rather than named `player`/`opponent`, so raising the count is
   a change to match setup and pairing, not a rewrite of Combat or the Recruit Phase.
   Anything that hard-codes "the other Seat" is a bug against this ADR.
+
+## Superseded
+
+Asynchrony ate the seat model. Once the Prep Phase became unbounded and the opponent
+became a Party drawn in advance ([ADR 0004](0004-asynchronous-matches.md)), there was
+nothing left for a second Seat to do: it never waits, never responds, and by fight time is
+already data. What survives of this ADR is its reasoning about the lobby, which still
+applies. What does not survive is "two Seats" — there is one Player and a stream. See
+[ADR 0006](0006-a-run-against-a-stream.md).
