@@ -98,14 +98,13 @@ impl Tribe {
 /// rather than running them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Keyword {
-    /// Battlegrounds' meaning -- must be attacked first -- does not survive the
-    /// positional sweep, which offers no target to redirect. Awaiting redefinition;
-    /// see ADR 0003.
+    /// Protects its neighbours. The sweep fixes who faces whom, but Effects may
+    /// still have positional implications, so Taunt is expressed positionally
+    /// rather than as a redirect. Exact rule not yet settled; see ADR 0003.
     Taunt,
     /// Absorbs the next instance of damage entirely.
     DivineShield,
-    /// Battlegrounds' meaning -- attacks twice per turn -- has no turn to take
-    /// twice under the positional sweep. Awaiting redefinition; see ADR 0003.
+    /// Whatever this Unit would do once in a Beat, it does twice.
     Windfury,
     /// Any damage it deals to a unit destroys that unit.
     Poisonous,
@@ -394,35 +393,6 @@ impl UnitDef {
     pub fn has_trigger(&self, trigger: Trigger) -> bool {
         self.abilities.iter().any(|a| a.trigger == trigger)
     }
-}
-
-/// A hero's once-per-turn activated power.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HeroPower {
-    pub name: String,
-    /// Gold cost to activate.
-    #[serde(default)]
-    pub cost: i32,
-    /// Activations allowed per recruit phase.
-    #[serde(default = "one")]
-    pub uses_per_turn: u32,
-    pub effects: Vec<Effect>,
-    #[serde(default)]
-    pub text: String,
-}
-
-/// A hero as written in a data file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HeroDef {
-    pub id: DefId,
-    pub name: String,
-    pub health: i32,
-    #[serde(default)]
-    pub armor: i32,
-    #[serde(default)]
-    pub power: Option<HeroPower>,
-    #[serde(default)]
-    pub text: String,
 }
 
 #[cfg(test)]

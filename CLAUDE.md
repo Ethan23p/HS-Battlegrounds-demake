@@ -63,31 +63,45 @@ python3 scripts/export_transcript.py --list   # available session transcripts
 
 ## State of play
 
-**Built:** `bg-sim::rng` — the deterministic generator
-([ADR 0001](docs/adr/0001-own-the-random-number-generator.md)). `bg-sim::units` — a first
-draft of the ability vocabulary, **provisional**. 16 tests, clippy clean.
+**Built:**
+- `bg-sim::rng` — the deterministic generator ([ADR 0001](docs/adr/0001-own-the-random-number-generator.md)).
+- `bg-sim::units` — the ability vocabulary as data. Provisional; Effects are not yet executed.
+- `bg-sim::party` — Units, Parties, Slots, Board. Left-packed invariant at Sweep boundaries.
+- `bg-sim::action_phase` — **the sweep, working.** `resolve(board) -> Resolution`.
+  Keywords live: Windfury, Divine Shield, Poisonous, Reborn. Taunt is inert pending its rule.
+
+49 tests, clippy clean. `cargo run -p bg-sim --example watch` prints a narrated fight.
+
+The Action Phase contains **no randomness at all** — the positional sweep removed every
+decision that needed it. `rng` is waiting for Effects, which is the first thing that will
+need it.
 
 **Decided:** one Player against a stream of opposing Parties, not a lobby; the Action Phase
 is a left-to-right sweep of Beats with same-Slot Units resolving synchronously; 8 Slots per
 Party; Rounds are asynchronous with an unbounded Prep Phase; three loosely-coupled in-run
 resources (Economy, Power, Units), bounded rather than conserved; an original minimal Unit
-set; headless-first; v0.1 = an Action Phase resolves, v0.2 = a Round completes,
-v0.3 = a Run completes; Abilities are data resolved through a pipeline with a modifier
-stage. See [`docs/adr/`](docs/adr/).
+set; no heroes in the prototype; headless-first; Abilities are data resolved through a
+pipeline with a modifier stage. See [`docs/adr/`](docs/adr/).
 
 **The default rule:** where we have not deliberately changed something, it works however
 Battlegrounds works. The five deltas in [vision.md](docs/design/vision.md) are exhaustive,
 not indicative. Numbers start at Battlegrounds' values, anchored on 1 as the atom.
 
-**Open, and blocking:**
+**Next, to finish v0.1:** Abilities. Triggers firing, Effects resolving through Selectors,
+cascading Deathrattles, and the modifier stage from
+[ADR 0007](docs/adr/0007-abilities-are-data-with-a-modifier-stage.md). This is where `rng`
+finally gets used, and where the Unit data files get written.
 
-1. **The sweep's details** — whether it repeats after Slot 8, when deaths apply, and what
-   happens in a Slot only one side occupies. Gates v0.1.
-2. **Taunt and Windfury need new meanings.** The sweep removed target choice, so Taunt has
-   nothing to constrain, and there is no turn for Windfury to take twice.
-3. **Whether heroes exist.** Never discussed; `units.rs` still carries a speculative
-   `HeroDef` that predates the design conversation. The default rule says yes, since
-   Battlegrounds has them.
+**Open:**
+
+1. **Taunt's positional rule.** Ethan established that Effects may have positional
+   implications, so Taunt survives as protection of neighbours rather than a redirect. The
+   exact rule is unwritten and the keyword is inert until it exists.
+2. **Unopposed Units striking the Player** is marked provisional — Ethan flagged it to be
+   revisited.
+3. **Reborn's exact stats on return** — currently returns with current attack and 1 health,
+   losing Reborn. Not verified against Battlegrounds, which the default rule says should
+   settle it.
 
 **Vocabulary is Ethan's.** He supplies the words; Claude's inventions are placeholders
 until ratified. Note *pool* and *action* are deliberately non-specific — qualify them in

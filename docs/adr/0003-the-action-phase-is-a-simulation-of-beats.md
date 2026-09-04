@@ -32,13 +32,24 @@ goes first.
 - **A Beat is a pure function** from world-state to world-state, trivially testable, and
   it hands the frontend its pacing: a renderer animates Beats, in order, knowing nothing
   else.
-- **Taunt has nothing left to do.** The keyword exists to constrain a choice of target, and
-  there is no choice. It needs reinventing or dropping. Windfury's "attacks twice" has no
-  turn to take twice and likewise needs a new meaning.
 - Poisonous is markedly stronger when every exchange is mutual.
+- **The keywords survive, contrary to a first reading of this ADR.** Windfury is whatever a
+  Unit would do once in a Beat, done twice -- the Beat *is* the turn it takes twice. Taunt
+  keeps meaning because removing target *choice* does not remove *position*: Effects may
+  still have positional implications, so Taunt is expressed as protection of neighbours
+  rather than as a redirect. Its exact rule is not yet settled.
+
+## The sweep, precisely
+
+- The sweep **repeats** from Slot 1 after Slot 8. A single pass would make health nearly
+  meaningless, since few Units would ever be struck twice.
+- Deaths apply at the **end of the Beat** that caused them, so a Unit killed in Slot 3 is
+  visibly gone by Slot 4. Deferring them to the end of a sweep would have corpses fighting
+  on, which is exactly the invisible bookkeeping this design removes.
+- A Slot occupied by only one side has that Unit **strike the opposing Player directly** —
+  Battlegrounds' damage-on-loss, relocated. A gap in your line facing their strength is a
+  positional mistake you can make and see. *(Provisional: to be revisited.)*
 
 ## Open
 
-Whether the sweep repeats after Slot 8 or the Action Phase is a single pass; when deaths
-are applied — at the end of the Beat that caused them, or the end of the sweep; and what
-happens in a Slot where only one side has a Unit.
+Taunt's exact positional rule.
