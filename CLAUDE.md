@@ -72,7 +72,8 @@ is a left-to-right sweep of Beats with same-Slot Units resolving synchronously; 
 Party; Rounds are asynchronous with an unbounded Prep Phase; three loosely-coupled in-run
 resources (Economy, Power, Units), bounded rather than conserved; an original minimal Unit
 set; headless-first; v0.1 = an Action Phase resolves, v0.2 = a Round completes,
-v0.3 = a Run completes. See [`docs/adr/`](docs/adr/).
+v0.3 = a Run completes; Abilities are data resolved through a pipeline with a modifier
+stage. See [`docs/adr/`](docs/adr/).
 
 **The default rule:** where we have not deliberately changed something, it works however
 Battlegrounds works. The five deltas in [vision.md](docs/design/vision.md) are exhaustive,
@@ -84,10 +85,7 @@ not indicative. Numbers start at Battlegrounds' values, anchored on 1 as the ato
    happens in a Slot only one side occupies. Gates v0.1.
 2. **Taunt and Windfury need new meanings.** The sweep removed target choice, so Taunt has
    nothing to constrain, and there is no turn for Windfury to take twice.
-3. **How Effects are expressed** — pure data vs. Rust per Unit vs. a hybrid with a pipeline
-   hook. See the [card survey](docs/research/card-shape-survey.md): ~30% of a real pool
-   resists pure parameterisation, clustering on five named capabilities.
-4. **Whether heroes exist.** Never discussed; `units.rs` still carries a speculative
+3. **Whether heroes exist.** Never discussed; `units.rs` still carries a speculative
    `HeroDef` that predates the design conversation. The default rule says yes, since
    Battlegrounds has them.
 
