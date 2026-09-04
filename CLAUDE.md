@@ -64,21 +64,36 @@ python3 scripts/export_transcript.py --list   # available session transcripts
 ## State of play
 
 **Built:** `bg-sim::rng` — the deterministic generator (see
-[ADR 0001](docs/adr/0001-own-the-random-number-generator.md)), with tests.
+[ADR 0001](docs/adr/0001-own-the-random-number-generator.md)), 16 tests passing.
 `bg-sim::cards` — a first draft of the ability vocabulary, **provisional**.
 
-**Decided:** one-on-one rather than eight seats; simultaneous Combat resolution;
-an original minimal card set rather than Battlegrounds' own; headless-first, with a human
-frontend after; v0.1 = a Combat resolves, v0.2 = a Round completes, v0.3 = a Match
-completes.
+**Decided:** 1v1 rather than eight Seats; the Action Phase is a simulation of Beats rather
+than a sequence of actions; Matches are asynchronous, with an unbounded Prep Phase and an
+opponent drawn in advance from an Opponent Pool; three loosely-coupled in-run resources
+(Economy, Power, Minions), bounded rather than strictly conserved; an original minimal card
+set; headless-first with a human frontend after; v0.1 = an Action Phase resolves,
+v0.2 = a Round completes, v0.3 = a Match completes. See [`docs/adr/`](docs/adr/).
 
-**Open, and blocking:** how Effects are expressed (pure data vs. Rust per card vs. a
-hybrid with a pipeline hook — see the
-[card survey](docs/research/card-shape-survey.md), which found ~30% of a real card pool
-resists pure parameterisation); what "conservation of value" means precisely; the
-mechanics of simultaneous resolution; and what "asynchronous match-ups" means.
+**Open, and blocking:**
+
+1. **Whether every Minion acts every Beat, or Minions have rates and a Beat advances a
+   clock.** This gates v0.1 and everything downstream of it, including what Taunt and
+   Windfury can mean.
+2. **How Effects are expressed** — pure data vs. Rust per card vs. a hybrid with a
+   pipeline hook. See the [card survey](docs/research/card-shape-survey.md): ~30% of a
+   real card pool resists pure parameterisation, clustering on five named capabilities.
+   Waiting on (1), since rates would add rate-modifying Effects to the vocabulary.
+3. **What Economy, Power and the third axis precisely are**, what conversion between them
+   costs, and the shape of the tax and loss-limit curves.
+4. **Where Opponent Pool Boards come from**, and whether a Match stays a two-Seat contest
+   with a winner or becomes a Run surviving a stream of drawn opponents.
+
+**Vocabulary is Ethan's.** He supplies the words; Claude's inventions are placeholders
+until he ratifies them. `CONTEXT.md` marks unratified proposals **(provisional)**. Three
+collisions are currently unresolved there — most importantly that the resource axis called
+"Minions" collides with `Minion`, the entity.
 
 **Known inconsistency:** `crates/bg-sim/src/cards.rs` uses `CardId` and talks about
-"cards", which `CONTEXT.md` explicitly rejects in favour of *Minion Definition*. The
-rename is deliberately deferred: that module's shape depends on the still-open effect-model
-decision, so renaming now would likely be churn. Fix it when that decision lands.
+"cards", which `CONTEXT.md` rejects in favour of *Minion Definition*. It also names things
+after "Combat", now the *Action Phase*. The rename is deliberately deferred: that module's
+shape depends on open decision (2), so renaming now would be churn. Fix it when that lands.

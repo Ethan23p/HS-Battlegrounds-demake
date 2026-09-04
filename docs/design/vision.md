@@ -29,47 +29,52 @@ Effect, sized to demonstrate the vocabulary rather than to fill a card pool. See
 
 ### 1. One-on-one, not an eight-player free-for-all — **SETTLED**
 
-See [ADR 0002](../adr/0002-two-seats-not-eight.md). Two Seats, no lobby, no
-matchmaking, no elimination order.
+See [ADR 0002](../adr/0002-two-seats-not-eight.md). Two Seats, no lobby, no matchmaking,
+no elimination order. Note that delta 5 puts pressure on what "two Seats" means.
 
-### 2. Simultaneous Combat resolution — **DECIDED, MECHANISM OPEN**
+### 2. The Action Phase is a simulation of Beats — **SETTLED IN FRAMING, RATE OPEN**
 
-See [ADR 0003](../adr/0003-simultaneous-combat-resolution.md). Attacks within a Tick
-resolve against the Tick's opening state; deaths apply at its end. Rock-paper-scissors
-rather than a turn order. This removes Combat's opening coin flip and makes each Tick a
-pure, separately checkable function.
+See [ADR 0003](../adr/0003-the-action-phase-is-a-simulation-of-beats.md). Beats are
+strictly ordered; everything inside one resolves simultaneously. The narrative is
+sequential, the resolution is not — you watch it unfold, and nobody goes first.
 
-Still to design: how attackers pair with defenders when both sides choose at once, whether
-every Minion attacks every Tick, what Taunt constrains under simultaneous choice, and what
-Windfury means when there is no turn to take twice.
+The framing is the decision: an auto-battler's combat is a *simulation playing out*, and
+carving it into discrete per-minion actions is a holdover from card games and tabletop,
+not something the form demands.
 
-### 3. Conservation of value — **OPEN, AND THE MOST INTERESTING ONE**
+Still open, and gating v0.1: whether every Minion acts every Beat, or whether Minions have
+rates and a Beat advances a clock. Also unresolved downstream of that — what Taunt
+constrains when nobody chooses a target, and what Windfury doubles when there is no turn.
 
-The intent: value behaves like currency. It moves between places rather than appearing
-from nothing. A buff's +2/+2 came from somewhere; a summoned Token's stats were paid for;
-gold spent went somewhere rather than evaporating.
+### 3. Conservation of values across three axes — **PRINCIPLE SETTLED, MECHANISM OPEN**
 
-If this holds, several things follow for free: power growth is bounded without balance
-patches, the Pool becomes a genuine contested resource rather than a probability
-distribution, and every Effect becomes a *transfer*, which is both easier to reason about
-and easier to render honestly to a player.
+See [ADR 0005](../adr/0005-three-bounded-resources.md). **Economy, Power, and Minions**:
+technically separate, loosely correlated, convertible only slowly or at a cost. Scoped
+in-run. Bounded rather than strictly conserved — large gains taxed, losses limited.
 
-Undecided, and blocking: whether there is one conserved quantity or several (gold, stats,
-bodies); whether conservation is global across both Seats and the Pool, or per-Seat;
-whether it is strict or merely bounded; and what the exchange rate is between gold and
-stats if they are the same substance.
+The payoff is that three loosely-coupled axes give three genuinely different kinds of
+problem ("rich but weak" is not the same trouble as "strong but out of bodies"), and that
+a damping curve bounds scaling structurally instead of through per-card balance patches.
 
-### 4. Offline-capable — **DIRECTION SETTLED, IMPLICATIONS OPEN**
+Undecided: what each axis precisely is, what the conversion paths cost, the shape of the
+tax and loss-limit curves, and what to call the third axis given that "Minions" already
+names the entity.
 
-The engine must be able to run a complete Match with no network and no server. In
-practice this is close to free given the architecture — the engine is a pure state machine
-with no I/O — but it constrains what the asynchronous model in delta 5 is permitted to
-assume.
+### 4. Offline-capable — **SETTLED, AND MOSTLY A CONSEQUENCE OF DELTA 5**
 
-### 5. Asynchronous match-ups — **OPEN, MEANING NOT YET PINNED DOWN**
+A complete Round must run with no network and no server. Asynchrony is what buys this:
+with the opponent drawn in advance and its Board already known, there is nothing to wait
+for and nobody to ask.
 
-Ethan has specified asynchronous "in a particular way", and that particular way has not
-yet been described. Recorded here as an explicit hole rather than guessed at.
+### 5. Asynchronous matches — **SETTLED**
+
+See [ADR 0004](../adr/0004-asynchronous-matches.md). The Prep Phase is unbounded — it ends
+when the Seat ends it, and ending it is what starts the Action Phase. The opponent is drawn
+from an Opponent Pool ahead of time rather than matched at the moment of the fight.
+
+Two consequences worth holding onto: no Ability may ever consult a live opponent, because
+by fight time the other side is data; and unbounded Prep gives up the timer as a design
+tool, so difficulty has to come from the position rather than the clock.
 
 ## Card set
 
