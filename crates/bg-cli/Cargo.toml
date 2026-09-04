@@ -1,0 +1,13 @@
+[package]
+name = "bg-cli"
+description = "Shallow terminal frontend for bg-sim"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "bg"
+path = "src/main.rs"
+
+[dependencies]
+bg-sim = { workspace = true }

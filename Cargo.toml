@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = ["crates/bg-sim", "crates/bg-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+ron = "0.12"
+bg-sim = { path = "crates/bg-sim" }
+
+[profile.release]
+lto = "thin"
