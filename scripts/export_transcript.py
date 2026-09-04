@@ -194,13 +194,27 @@ META_TEXT_PREFIXES = (
     "Stop hook feedback:",
 )
 
+# Markers identifying harness-injected content that arrives with the "user"
+# role but was never typed by a human: background-task completion notices and
+# system reminders. Unlike META_TEXT_PREFIXES these are matched anywhere in the
+# opening of the message, because the wrapper element is not always first.
+# Only the head of the message is searched, so a human quoting one of these
+# tags later in a long message is still exported.
+META_TEXT_SUBSTRINGS = (
+    "<task-notification>",
+    "<system-reminder>",
+    "[SYSTEM NOTIFICATION - NOT USER INPUT]",
+)
+META_SUBSTRING_SEARCH_CHARS = 400
+
 # Literal text-block bodies that are harness markers, not conversation, but
 # still worth a short note in the output rather than silent deletion.
 INTERRUPT_MARKER = "[Request interrupted by user]"
 
-# Content-block "type" values we understand. Anything else is counted and
-# skipped rather than crashing the export.
-KNOWN_ASSISTANT_BLOCK_TYPES = {"text", "thinking", "tool_use", "redacted_thinking"}
+# Content-block "type" values we understand within a "user" line's content
+# list. Anything else is counted and skipped rather than crashing the export.
+# (The assistant-side equivalent -- text/thinking/tool_use/redacted_thinking
+# -- is handled directly in render_transcript()'s per-block dispatch below.)
 KNOWN_USER_BLOCK_TYPES = {"text", "tool_result"}
 
 TRUNCATE_LEN = 100  # for --include-tools one-line summaries
@@ -297,7 +311,10 @@ def truncate(text: str, n: int = TRUNCATE_LEN) -> str:
 
 def is_meta_or_harness_text(text: str) -> bool:
     stripped = text.lstrip()
-    return any(stripped.startswith(p) for p in META_TEXT_PREFIXES)
+    if any(stripped.startswith(p) for p in META_TEXT_PREFIXES):
+        return True
+    head = stripped[:META_SUBSTRING_SEARCH_CHARS]
+    return any(marker in head for marker in META_TEXT_SUBSTRINGS)
 
 
 def summarize_tool_use(block: dict) -> str:

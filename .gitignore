@@ -1,1 +1,6 @@
+# Rust build output
 target/
+
+# Python bytecode from scripts/
+__pycache__/
+*.py[cod]
