@@ -116,13 +116,10 @@ impl Unit {
 
 /// The Units a Player brings, in the Slots they occupy.
 ///
-/// **Invariant, at Sweep boundaries:** Units are packed to the left with no
-/// interior gaps. Deaths punch holes during a Sweep -- a Unit killed in Slot 3
-/// is gone when Slot 4 resolves -- and [`Party::compact`] closes them once the
-/// Sweep ends. Holding facings still for the length of a Sweep is what keeps a
-/// Beat readable; closing them between Sweeps is what guarantees the Action
-/// Phase makes progress, since Slot 0 is then always occupied on both sides
-/// while both Parties are alive.
+/// **Invariant, between Beats:** Units are packed to the left with no interior
+/// gaps. A Beat can punch a hole (its attacker or target dying), and
+/// [`Party::compact`] closes it immediately after, which is what keeps
+/// `turn_count % len` (ADR 0008) pointing at a live Unit on the next Beat.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Party {
     slots: [Option<Unit>; SLOTS],
@@ -238,7 +235,8 @@ impl std::fmt::Display for PartyFull {
 
 impl std::error::Error for PartyFull {}
 
-/// The two Parties, facing each other. Slot *i* of one faces Slot *i* of the other.
+/// The two Parties contesting an Action Phase. Targeting is random (ADR 0008), so
+/// Slots do not face one another the way this once implied.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Board {
     pub player: Party,

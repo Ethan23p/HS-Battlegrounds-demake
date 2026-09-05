@@ -30,8 +30,9 @@ _Avoid_: recruit/tavern/shop/buy phase, turn
 Seed. No input.
 _Avoid_: combat, battle, fight
 
-**Beat**: One Slot's resolution as the sweep moves left to right; the facing Units
-resolve *synchronously*.
+**Beat**: One moment in which both Parties' current attackers act *simultaneously* —
+Battlegrounds' alternating turns, merged into one. Each side still picks its attacker by
+cycling left to right through its own Party.
 _Avoid_: tick, turn, step, exchange
 
 ## Units and Parties
@@ -55,7 +56,9 @@ _Avoid_: board, warband, army, lineup, team, roster
 resolution order. May be empty.
 _Avoid_: position, index, tile
 
-**Board**: Both Parties' Slots, facing each other; Slot *i* faces Slot *i*.
+**Board**: Both Parties, as they stand during the Action Phase. Targeting is random
+(see [ADR 0008](docs/adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md)),
+not Slot-to-Slot.
 
 **Token**: A Unit Definition that's summoned-only; never in a Shop.
 

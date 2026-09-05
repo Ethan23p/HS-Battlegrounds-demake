@@ -1,0 +1,84 @@
+---
+status: accepted
+---
+
+# Targeting is random; simultaneity is the only delta from Battlegrounds' attack order
+
+ADR 0003 overreached. The only rule Ethan actually asked to change was *how attacks are
+sequenced* — replacing Battlegrounds' alternating turns with simultaneous ones. Recorded
+as "positional pairing" with "no targeting decision exists," that single delta grew, across
+several rounds of the design conversation, into three unrequested ones: fixed slot-vs-slot
+targeting instead of Battlegrounds' random targeting, redefinitions of Taunt and Windfury,
+and an Action Phase with no randomness at all. This ADR corrects the record. Side by side:
+
+| | Battlegrounds | This project |
+|---|---|---|
+| Attack order | Left to right, alternating sides | Left to right, **resolved simultaneously** |
+| Targeting | Random, unless a Taunt Unit is in play | Random, unless a Taunt Unit is in play — **unchanged** |
+| Taunt | While a Taunt Unit is in the opposing Party, all attacks must target it | **Unchanged** |
+| Windfury | Acts twice on its turn | Acts twice in its Beat — unchanged in effect |
+| Damage / death | Sequential — the surviving attacker is unambiguous | Simultaneous; **the attacker dies last** |
+
+Only row one is a delta. Everything else is the default rule doing its job: undeltered,
+it works however Battlegrounds works.
+
+## What this reverses
+
+- **Slot-vs-slot pairing is gone.** A Unit's target is drawn at random from the *opposing
+  Party*, not from the mirrored Slot. "Slot *i* faces Slot *i*" ([CONTEXT.md](../../CONTEXT.md)'s
+  old Board definition) was never something Ethan asked for.
+- **Taunt and Windfury are not redefined.** Taunt constrains the random draw: while any
+  Taunt Unit is alive in a Party, every attack against that Party must target one. Windfury
+  is unaffected by this ADR — "the action a Unit would do once in a Beat, it does twice"
+  already matched Battlegrounds and stays.
+- **The Action Phase has randomness again.** Target selection draws from
+  [`Domain::Combat`](../../crates/bg-sim/src/rng.rs), starting in v0.1 rather than waiting
+  for Effects. `resolve` now takes an `&mut Rng`.
+- **"Unopposed Unit strikes the Player" is removed**, not reinterpreted. It only existed
+  because Slot-pairing could leave one side's higher Slots facing nothing while both
+  Parties were still alive overall. Under random targeting that situation doesn't arise:
+  a side's Party is either alive (and a full target pool) or empty (and the Action Phase
+  has already ended). Damage-on-loss, as a single end-of-fight calculation, stays exactly
+  where the roadmap already puts it — v0.2/v0.3, computed from the survivors on
+  `Resolution::final_board`.
+
+## The mechanism
+
+Each side keeps its own **turn count**, starting at 0 and incrementing every Beat. That
+side's attacker for a Beat is whichever of its living Units sits at
+`turn_count % party.len()`, evaluated fresh each Beat — i.e. Battlegrounds' left-to-right
+cycling through the current board, not a stored pointer that can go stale when a Unit
+dies. Both sides' attackers act in the same Beat: this is simultaneity's entire meaning,
+and the only thing this ADR asks the engine to do differently from Battlegrounds.
+
+A Beat proceeds instance by instance (Windfury's second swing is a second instance).
+Within an instance, both sides' current attacker strike at once: each draws a random
+target from the opposing Party's living Units (respecting Taunt), damage and Poisonous
+apply, and removal is deferred to the end of the Beat — so a Unit fatally wounded in
+instance 0 is still a valid attacker, but not a valid *target*, for instance 1. If an
+attacker's opposing Party is emptied mid-Beat by the other side's simultaneous swing, its
+remaining instances strike the Player directly (Battlegrounds' actual behaviour when a
+board empties mid-turn), which is the only case `damage_to_player`/`damage_to_opposing`
+still record.
+
+**Attacker dies last:** when a Beat's deaths are applied, any Unit that died *without*
+attacking this Beat is removed first; a Unit that attacked and also died this Beat is
+removed after. This keeps a kill attributable to its attacker even when the trade was
+mutual, which matters once Effects can ask "did I kill something this Beat" (the
+[card survey](../research/card-shape-survey.md)'s kill-attribution capability).
+
+## Flagged for ratification
+
+Two mechanics above aren't in the BG-vs-demake table and are engineering calls, not
+design ones: the `turn_count % len` cycling rule (Battlegrounds' real pointer has messier
+edge cases around a dying attacker; this is the clean version), and re-targeting to the
+Player when a side's board is emptied mid-Beat rather than wasting the swing. Both follow
+the default rule as closely as a well-defined implementation allows. Flagging per project
+convention — correct if either doesn't match your intent.
+
+## Superseded
+
+[ADR 0003](0003-the-action-phase-is-a-simulation-of-beats.md)'s framing (a Beat as the
+unit the Action Phase advances by, deaths at the end of the Beat that caused them, the
+sweep repeating until a Party is empty) still holds. Its claims about targeting,
+determinism, and the keyword casualties do not; this ADR replaces those specifically.

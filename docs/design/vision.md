@@ -31,14 +31,16 @@ contrast — a small original Unit set, roughly one per Effect.
 [ADR 0006](../adr/0006-a-run-against-a-stream.md). One Player faces a stream of opposing
 Parties drawn from a pool — no eight-player free-for-all, no lobby, no second Seat.
 
-### 2. The Action Phase is a left-to-right sweep of Beats — SETTLED
+### 2. Attacks resolve simultaneously instead of alternating — SETTLED
 
-[ADR 0003](../adr/0003-the-action-phase-is-a-simulation-of-beats.md). Slot by Slot, left
-to right; the two Units facing each other in a Slot resolve synchronously — combat as *a
-simulation playing out*, not discrete per-unit turns. Every targeting decision
-disappears, and ordering the Party becomes the central skill. Casualties needing
-reinvention: **Taunt** (no target choice left to constrain) and **Windfury** (no turn to
-take twice).
+[ADR 0003](../adr/0003-the-action-phase-is-a-simulation-of-beats.md),
+[ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md). Each side
+cycles left-to-right through its own Party for its next attacker, exactly like
+Battlegrounds; the only change is that both sides' current attacker act in the same
+moment — a **Beat** — instead of one side waiting for the other. Targeting stays random,
+respecting Taunt, same as Battlegrounds; neither Taunt nor Windfury needed
+redefining. The one real consequence: two evenly-matched attackers can now trade blows
+and die together, since nobody swings first.
 
 ### 3. An intentional economy across three axes — PRINCIPLE SETTLED, DYNAMICS DEFERRED
 

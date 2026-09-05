@@ -98,9 +98,9 @@ impl Tribe {
 /// rather than running them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Keyword {
-    /// Protects its neighbours. The sweep fixes who faces whom, but Effects may
-    /// still have positional implications, so Taunt is expressed positionally
-    /// rather than as a redirect. Exact rule not yet settled; see ADR 0003.
+    /// While this Unit or another with Taunt is alive in its Party, every attack
+    /// against that Party must target a Taunt holder. Exactly Battlegrounds'
+    /// rule; see ADR 0008.
     Taunt,
     /// Absorbs the next instance of damage entirely.
     DivineShield,
