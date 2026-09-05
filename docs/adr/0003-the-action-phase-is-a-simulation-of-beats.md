@@ -1,55 +1,52 @@
 ---
-status: accepted
+status: accepted, partially superseded by ADR-0008
 ---
 
 # The Action Phase is a left-to-right sweep of Beats
 
-In Battlegrounds, combat alternates: one side attacks, then the other, with a coin flip
-breaking the tie over who starts. Whether a Unit ever acts depends on whether something
-killed it first, so outcomes hinge on an ordering players cannot fully see.
+> **Partially superseded.** The claims below about targeting, determinism, and Taunt/
+> Windfury were an overreach — Ethan asked only for simultaneous resolution, not for
+> Battlegrounds' random targeting to disappear. See
+> [ADR 0008](0008-targeting-is-random-simultaneity-is-the-only-delta.md), which corrects
+> this while keeping the parts of this ADR that were right: a Beat as the unit of
+> advancement, deaths applying at the end of the Beat that caused them, and the sweep
+> repeating until a Party empties.
 
-Instead, the Action Phase **sweeps Slot by Slot from left to right**. At each Slot, the two
-Units facing each other resolve **synchronously**. That moment is a **Beat**.
-
-Two ideas are doing work here and they are easy to confuse. The first is a framing: an
-auto-battler's combat is *a simulation playing out*, and carving it into discrete
-per-unit actions is a holdover from card games and tabletop, not something the form
-demands. The second is the mechanism that serves it: a positional sweep, so the narrative
-is sequential (Beat follows Beat, left to right, one moment at a time) while resolution
-within any single moment is symmetric. You watch it unfold; in any given Slot, nobody
-goes first.
+Battlegrounds alternates attacks, with a coin flip breaking who starts; whether a Unit
+acts depends on an ordering players can't fully see. Instead, the Action Phase **sweeps
+Slot by Slot, left to right**, and the two facing Units resolve **synchronously** — that
+moment is a **Beat**. Combat is a simulation playing out, not discrete per-unit actions;
+the sweep keeps the narrative sequential while resolution within a moment stays
+symmetric.
 
 ## Consequences
 
-- **The opening coin flip disappears**, along with a large share of the Action Phase's
-  variance. Much of Battlegrounds' randomness is really just "who swung first".
-- **There is no targeting decision at all.** Slot *i* faces Slot *i*. Every scrap of
-  target-selection randomness leaves the game, which is the strongest possible service to
-  unambiguous resolution — and it makes **ordering the Party the central skill** of the
-  Prep Phase, giving the shopping half real depth with no extra machinery.
-- **Trades become mutual.** Two 3/3s facing each other kill each other. Intuitions carried
-  from Battlegrounds about what makes a good board are suspect.
-- **A Beat is a pure function** from world-state to world-state, trivially testable, and
-  it hands the frontend its pacing: a renderer animates Beats, in order, knowing nothing
-  else.
-- Poisonous is markedly stronger when every exchange is mutual.
-- **The keywords survive, contrary to a first reading of this ADR.** Windfury is whatever a
-  Unit would do once in a Beat, done twice -- the Beat *is* the turn it takes twice. Taunt
-  keeps meaning because removing target *choice* does not remove *position*: Effects may
-  still have positional implications, so Taunt is expressed as protection of neighbours
-  rather than as a redirect. Its exact rule is not yet settled.
+- **The opening coin flip disappears**, and with it most of the Action Phase's variance
+  — much of Battlegrounds' randomness is really "who swung first."
+- ~~**No targeting decision exists.** Slot *i* faces Slot *i*, removing all
+  target-selection randomness and making **ordering the Party the central skill**.~~
+  **Superseded** — targeting is random, as in Battlegrounds; see ADR 0008.
+- **Trades become mutual** — two 3/3s facing each other kill each other. *(Still true when
+  two attackers happen to target each other; no longer guaranteed every Beat.)*
+- **A Beat is a pure function** of world-state, trivially testable, and it hands the
+  frontend its pacing.
+- Poisonous is stronger when every exchange is mutual.
+- ~~**The keywords survive.** Windfury is a Beat's action done twice; Taunt becomes
+  protection of neighbours rather than a redirect, since position remains even without
+  target choice. Its exact rule is unsettled.~~ **Superseded** — neither keyword needed
+  redefining; both already meant what Battlegrounds means. See ADR 0008.
 
 ## The sweep, precisely
 
-- The sweep **repeats** from Slot 1 after Slot 8. A single pass would make health nearly
-  meaningless, since few Units would ever be struck twice.
-- Deaths apply at the **end of the Beat** that caused them, so a Unit killed in Slot 3 is
-  visibly gone by Slot 4. Deferring them to the end of a sweep would have corpses fighting
-  on, which is exactly the invisible bookkeeping this design removes.
-- A Slot occupied by only one side has that Unit **strike the opposing Player directly** —
-  Battlegrounds' damage-on-loss, relocated. A gap in your line facing their strength is a
-  positional mistake you can make and see. *(Provisional: to be revisited.)*
+- The sweep **repeats** from Slot 1 after Slot 8 — a single pass would leave health
+  nearly meaningless.
+- Deaths apply at the **end of the Beat** that caused them, so a Slot-3 kill is gone by
+  Slot 4.
+- ~~A Slot with only one side has that Unit **strike the Player directly** —
+  Battlegrounds' damage-on-loss, relocated. *(Provisional.)*~~ **Removed** — this was a
+  byproduct of Slot-pairing, not a Battlegrounds mechanic. See ADR 0008.
 
 ## Open
 
-Taunt's exact positional rule.
+Taunt's exact positional rule. *(Resolved by ADR 0008 — Taunt isn't positional; it
+constrains random targeting, exactly as in Battlegrounds.)*

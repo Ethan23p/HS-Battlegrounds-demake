@@ -116,13 +116,10 @@ impl Unit {
 
 /// The Units a Player brings, in the Slots they occupy.
 ///
-/// **Invariant, at Sweep boundaries:** Units are packed to the left with no
-/// interior gaps. Deaths punch holes during a Sweep -- a Unit killed in Slot 3
-/// is gone when Slot 4 resolves -- and [`Party::compact`] closes them once the
-/// Sweep ends. Holding facings still for the length of a Sweep is what keeps a
-/// Beat readable; closing them between Sweeps is what guarantees the Action
-/// Phase makes progress, since Slot 0 is then always occupied on both sides
-/// while both Parties are alive.
+/// **Invariant, at Pass boundaries:** Units are packed to the left with no
+/// interior gaps. A death punches a hole that stays open for the rest of the
+/// Pass, and [`Party::compact`] closes it only once that Pass ends -- which is
+/// what holds Slots still under the attack order while a Pass runs (ADR 0009).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Party {
     slots: [Option<Unit>; SLOTS],
@@ -185,7 +182,7 @@ impl Party {
     /// The Slots immediately left and right of `slot` that hold a Unit.
     ///
     /// Adjacency is Slot arithmetic, not a spatial query -- which is only true
-    /// because the sweep fixes positions (ADR 0003).
+    /// because a Party holds still for the length of a Pass (ADR 0009).
     pub fn neighbours(&self, slot: usize) -> Vec<usize> {
         let mut out = Vec::with_capacity(2);
         if slot > 0 && self.get(slot - 1).is_some() {
@@ -238,7 +235,8 @@ impl std::fmt::Display for PartyFull {
 
 impl std::error::Error for PartyFull {}
 
-/// The two Parties, facing each other. Slot *i* of one faces Slot *i* of the other.
+/// The two Parties contesting an Action Phase. Targeting is random (ADR 0008), so
+/// Slots do not face one another the way this once implied.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Board {
     pub player: Party,
@@ -338,11 +336,8 @@ mod tests {
         let mut p =
             Party::from_units(vec![unit("a", 1, 1), unit("b", 1, 1), unit("c", 1, 1)]).unwrap();
         p.take(1);
-        assert!(!p.is_packed(), "a hole is expected mid-Sweep");
-        assert!(
-            p.get(2).is_some(),
-            "Slot 2 holds still while the Sweep runs"
-        );
+        assert!(!p.is_packed(), "a hole is expected mid-Pass");
+        assert!(p.get(2).is_some(), "Slot 2 holds still while the Pass runs");
 
         p.compact();
         assert!(p.is_packed());
