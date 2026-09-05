@@ -34,13 +34,12 @@ Parties drawn from a pool — no eight-player free-for-all, no lobby, no second 
 ### 2. Attacks resolve simultaneously instead of alternating — SETTLED
 
 [ADR 0003](../adr/0003-the-action-phase-is-a-simulation-of-beats.md),
-[ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md). Each side
-cycles left-to-right through its own Party for its next attacker, exactly like
-Battlegrounds; the only change is that both sides' current attacker act in the same
-moment — a **Beat** — instead of one side waiting for the other. Targeting stays random,
-respecting Taunt, same as Battlegrounds; neither Taunt nor Windfury needed
-redefining. The one real consequence: two evenly-matched attackers can now trade blows
-and die together, since nobody swings first.
+[ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md). Slots
+resolve left to right, exactly like Battlegrounds; the only change is that both sides'
+Slot resolves in the same moment — a **Beat** — instead of one side waiting for the
+other. Targeting stays random, respecting Taunt, and neither Taunt nor Windfury needed
+redefining. The one real consequence: two evenly-matched Units can now trade blows and
+die together, since nobody swings first.
 
 ### 3. An intentional economy across three axes — PRINCIPLE SETTLED, DYNAMICS DEFERRED
 
@@ -69,9 +68,9 @@ a clock.
 and Battlegrounds is left-anchored only by convention, so neither lets you say from the
 board alone who acts next. Here a Party anchors on its left-most Unit and closes ranks
 toward it — continuously while you arrange it in the Prep Phase, and during the Action
-Phase only at the start of a Pass (one full left-to-right traverse of a Party). A Unit
-that dies mid-Pass leaves its Slot empty until the Pass ends, so nothing shifts under the
-attack order while it is running.
+Phase only at Beat 0 of a Pass — the clock's own step for it, before Beat 1 resolves
+Slot 1. A Unit that dies mid-Pass leaves its Slot empty until the next Beat 0, so nothing
+shifts under the clock while a Pass is running.
 
 ## Presentation
 

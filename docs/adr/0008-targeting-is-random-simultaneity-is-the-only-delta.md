@@ -45,11 +45,10 @@ it works however Battlegrounds works.
 
 ## The mechanism
 
-Each side traverses its own Party left to right, one attacker per Beat, wrapping at the
-end. [ADR 0009](0009-the-party-is-left-anchored.md) specifies that traverse — a **Pass** —
-and when the Party closes ranks around its dead. Both sides' attackers act in the same
-Beat: this is simultaneity's entire meaning, and the only thing this ADR asks the engine
-to do differently from Battlegrounds.
+A **Beat** is a time-step of the Board, and Beat *n* resolves Slot *n* — on both sides at
+once. That is simultaneity's entire meaning, and the only thing this ADR asks the engine
+to do differently from Battlegrounds. [ADR 0009](0009-the-party-is-left-anchored.md)
+specifies the clock those Beats run on, and when a Party closes ranks around its dead.
 
 A Beat proceeds attack by attack (Windfury's second attack is a second instance). Within
 an instance, both sides' current attacker strike at once: **each draws its own target**

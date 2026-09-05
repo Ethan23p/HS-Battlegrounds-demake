@@ -30,14 +30,15 @@ _Avoid_: recruit/tavern/shop/buy phase, turn
 Seed. No input.
 _Avoid_: combat, battle, fight
 
-**Beat**: One moment in which both Parties' current attackers act *simultaneously* —
-Battlegrounds' alternating turns, merged into one. Each side still picks its attacker by
-traversing its own Party left to right.
+**Beat**: One time-step of the Action Phase, belonging to the Board rather than to either
+Party. Beat *n* resolves Slot *n*, where whoever stands there acts — on both sides
+*simultaneously*, which is Battlegrounds' alternating turns merged into one. Beat 0 is
+the one exception: it closes ranks and nobody acts.
 _Avoid_: tick, turn, step, exchange
 
-**Pass** *(provisional)*: One full left-to-right traverse of a Party, giving each of its
-Units a turn. Ethan's phrase was "a round of beats"; **Round** was already taken. Each
-side runs its own.
+**Pass** *(provisional)*: One full turn of the clock — Beat 0, then Beats 1 through 8.
+Ethan's phrase was "a round of beats"; **Round** was already taken. One Pass covers the
+whole Board, not one Party.
 _Avoid_: sweep, cycle, lap
 
 ## Units and Parties
@@ -57,13 +58,13 @@ class, unlike Battlegrounds.
 the central decision.
 _Avoid_: board, warband, army, lineup, team, roster
 
-**Slot**: One of **8** ordered positions a Party occupies — the order its Units act in.
-May be empty.
+**Slot**: One of **8** ordered positions a Party occupies, numbered **1 to 8** from the
+left. Slot *n* acts in Beat *n*. May be empty.
 _Avoid_: position, index, tile
 
 **Closing ranks**: A Party re-anchoring on its left-most Unit, closing the gaps its dead
-left. Continuous during a Prep Phase; during an Action Phase only at a Pass boundary, so
-Slots hold still while a Pass runs — see
+left. Continuous during a Prep Phase; during an Action Phase only at Beat 0, so Slots
+hold still while a Pass runs — see
 [ADR 0009](docs/adr/0009-the-party-is-left-anchored.md).
 _Avoid_: shuffling, sliding, re-packing
 

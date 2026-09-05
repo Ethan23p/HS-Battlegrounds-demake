@@ -68,8 +68,8 @@ ever attacks a Player: that is Hearthstone, not Battlegrounds. `rng` draws from
 `Domain::Combat` starting in v0.1, not waiting for Effects.
 
 **Decided:** one Player against a stream of opposing Parties; the Action Phase resolves
-Beats simultaneously, each side traversing its own Party left-to-right like Battlegrounds
-does; Parties are left-anchored and close ranks only at a Pass boundary
+Beats simultaneously, a Beat being a time-step of the Board in which Beat n resolves Slot
+n; Parties are left-anchored and close ranks only at Beat 0
 ([ADR 0009](docs/adr/0009-the-party-is-left-anchored.md)); 8 Slots per Party;
 asynchronous Rounds, unbounded Prep; three loosely-coupled, bounded resources (Economy,
 Power, Units); an original minimal Unit set; no heroes yet; headless-first; Abilities as
