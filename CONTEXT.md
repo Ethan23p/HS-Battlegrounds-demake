@@ -1,6 +1,6 @@
 # Battlegrounds Demake
 
-A minimalist demake of Hearthstone: Battlegrounds — a vertical slice with five deliberate
+A minimalist demake of Hearthstone: Battlegrounds — a vertical slice with six deliberate
 rule changes (see [vision.md](docs/design/vision.md)).
 
 This file is a **glossary and nothing else**. A term lands here once settled; a word we
@@ -32,8 +32,13 @@ _Avoid_: combat, battle, fight
 
 **Beat**: One moment in which both Parties' current attackers act *simultaneously* —
 Battlegrounds' alternating turns, merged into one. Each side still picks its attacker by
-cycling left to right through its own Party.
+traversing its own Party left to right.
 _Avoid_: tick, turn, step, exchange
+
+**Pass** *(provisional)*: One full left-to-right traverse of a Party, giving each of its
+Units a turn. Ethan's phrase was "a round of beats"; **Round** was already taken. Each
+side runs its own.
+_Avoid_: sweep, cycle, lap
 
 ## Units and Parties
 
@@ -52,9 +57,15 @@ class, unlike Battlegrounds.
 the central decision.
 _Avoid_: board, warband, army, lineup, team, roster
 
-**Slot**: One of **8** ordered positions a Party occupies — the Action Phase's
-resolution order. May be empty.
+**Slot**: One of **8** ordered positions a Party occupies — the order its Units act in.
+May be empty.
 _Avoid_: position, index, tile
+
+**Closing ranks**: A Party re-anchoring on its left-most Unit, closing the gaps its dead
+left. Continuous during a Prep Phase; during an Action Phase only at a Pass boundary, so
+Slots hold still while a Pass runs — see
+[ADR 0009](docs/adr/0009-the-party-is-left-anchored.md).
+_Avoid_: shuffling, sliding, re-packing
 
 **Board**: Both Parties, as they stand during the Action Phase. Targeting is random
 (see [ADR 0008](docs/adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md)),

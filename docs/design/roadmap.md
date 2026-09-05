@@ -7,7 +7,7 @@ Three milestones, each defined by a thing you can *do*. v0.3 is the prototype.
 Hand the engine two Parties; it fights them and reports what happened.
 
 - Unit Definitions load from data files.
-- The Action Phase runs to completion: Beats, the sweep, deaths, Deathrattles, cascading
+- The Action Phase runs to completion: Beats, Passes, deaths, Deathrattles, cascading
   Triggers, keyword interactions.
 - Same Seed + Parties always produce the same result, with a readable log.
 - No gold, Shop, Player actions, or bots — Parties are constructed directly.

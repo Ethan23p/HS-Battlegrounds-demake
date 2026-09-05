@@ -159,31 +159,52 @@ fn each_side_cycles_left_to_right_through_its_own_party() {
     );
 }
 
+/// A Party whose middle Unit ("b", Taunt, so it takes every one of killer's
+/// attacks) dies on Beat 0. Used by the two Pass-boundary tests below.
+fn board_that_loses_its_middle_unit_on_beat_0() -> bg_sim::party::Board {
+    board_of(
+        vec![
+            plain("a", 0, 9),
+            u("b", 0, 1, &[Keyword::Taunt]),
+            plain("c", 0, 9),
+        ],
+        vec![plain("killer", 1, 99)],
+    )
+}
+
 #[test]
-fn compaction_keeps_the_cycle_pointed_at_a_live_unit() {
-    // "front" (Taunt, forcing every one of brute's attacks onto it) dies in
-    // Beat 0. Without compaction closing the hole, Beat 1's index into the
-    // Player Party would land on an empty Slot instead of "free".
-    let r = resolve(
-        board_of(
-            vec![u("front", 1, 1, &[Keyword::Taunt]), plain("free", 1, 9)],
-            vec![plain("brute", 9, 20)],
-        ),
-        &mut rng(),
-    );
-    assert_eq!(r.outcome, Outcome::OpposingWins);
-    let died: Vec<&str> = r
+fn a_death_leaves_its_slot_empty_until_the_pass_ends() {
+    // Beat 1 must skip the hole "b" left rather than close it, so the Player's
+    // attacker is Slot 2 -- not Slot 1, which is where "c" would have been had
+    // the Party closed ranks on the death (ADR 0009).
+    let r = resolve(board_that_loses_its_middle_unit_on_beat_0(), &mut rng());
+    let slots: Vec<usize> = r
         .log
         .iter()
         .filter_map(|e| match e {
-            Event::Died { name, .. } => Some(name.as_str()),
+            Event::BeatBegan { player_slot, .. } => Some(*player_slot),
             _ => None,
         })
+        .take(3)
         .collect();
     assert_eq!(
-        died,
-        vec!["front", "free"],
-        "\"free\" must still get its turn after compaction"
+        slots,
+        vec![0, 2, 0],
+        "the hole is skipped, then closed once the Pass runs out"
+    );
+}
+
+#[test]
+fn a_party_closes_ranks_only_at_a_pass_boundary() {
+    let r = resolve(board_that_loses_its_middle_unit_on_beat_0(), &mut rng());
+    let position = |pred: fn(&Event) -> bool| r.log.iter().position(pred);
+    let compacted = position(|e| matches!(e, Event::Compacted { side: Side::Player }))
+        .expect("the Party closed ranks");
+    let beat_1 = position(|e| matches!(e, Event::BeatBegan { beat: 1, .. })).unwrap();
+    let beat_2 = position(|e| matches!(e, Event::BeatBegan { beat: 2, .. })).unwrap();
+    assert!(
+        beat_1 < compacted && compacted < beat_2,
+        "ranks close between Passes, not on the death that opened the hole"
     );
 }
 
@@ -229,12 +250,30 @@ fn taunt_stops_applying_once_its_holder_dies() {
     assert_eq!(r.beats, 2);
 }
 
+#[test]
+fn a_second_attack_chooses_a_new_target() {
+    // Windfury's second attack draws again rather than repeating the first, so
+    // both 1-health Units die in the same Beat whichever order they come up in.
+    let r = resolve(
+        board_of(
+            vec![u("gusty", 5, 9, &[Keyword::Windfury])],
+            vec![plain("p", 0, 1), plain("q", 0, 1)],
+        ),
+        &mut rng(),
+    );
+    assert_eq!(r.outcome, Outcome::PlayerWins);
+    assert_eq!(r.beats, 1, "one Beat, two different targets");
+}
+
 // ---------------------------------------------------------------------------
-// Mid-Beat wipes: swings with no target left strike the Player (ADR 0008)
+// Nothing ever attacks a Player
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_windfurys_second_swing_strikes_the_player_if_its_first_swing_wiped_the_board() {
+fn an_attack_with_nothing_left_to_target_does_not_land() {
+    // The first attack empties the opposing Party; Battlegrounds has no
+    // attacking the Player, so the Windfury second attack simply does not
+    // happen.
     let r = resolve(
         board_of(
             vec![u("slayer", 10, 10, &[Keyword::Windfury])],
@@ -243,9 +282,17 @@ fn a_windfurys_second_swing_strikes_the_player_if_its_first_swing_wiped_the_boar
         &mut rng(),
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
+    assert_eq!(r.beats, 1);
     assert_eq!(
-        r.damage_to_opposing, 10,
-        "the second swing found no target and hit the opposing player instead"
+        count_events(&r.log, |e| matches!(
+            e,
+            Event::Struck {
+                by: Side::Player,
+                ..
+            }
+        )),
+        1,
+        "the second attack found nothing standing and did not land"
     );
 }
 
@@ -255,7 +302,16 @@ fn a_zero_attack_unit_strikes_nobody() {
         board_of(vec![plain("pacifist", 0, 4)], vec![plain("wall", 1, 9)]),
         &mut rng(),
     );
-    assert_eq!(r.damage_to_opposing, 0);
+    assert_eq!(
+        count_events(&r.log, |e| matches!(
+            e,
+            Event::Struck {
+                by: Side::Player,
+                ..
+            }
+        )),
+        0
+    );
 }
 
 // ---------------------------------------------------------------------------

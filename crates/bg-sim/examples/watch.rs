@@ -33,6 +33,4 @@ fn main() {
         &mut rng,
     );
     println!("{}", r.narrate());
-    println!("\ndamage to opposing player: {}", r.damage_to_opposing);
-    println!("damage to player: {}", r.damage_to_player);
 }

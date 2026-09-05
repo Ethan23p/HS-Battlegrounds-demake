@@ -116,10 +116,10 @@ impl Unit {
 
 /// The Units a Player brings, in the Slots they occupy.
 ///
-/// **Invariant, between Beats:** Units are packed to the left with no interior
-/// gaps. A Beat can punch a hole (its attacker or target dying), and
-/// [`Party::compact`] closes it immediately after, which is what keeps
-/// `turn_count % len` (ADR 0008) pointing at a live Unit on the next Beat.
+/// **Invariant, at Pass boundaries:** Units are packed to the left with no
+/// interior gaps. A death punches a hole that stays open for the rest of the
+/// Pass, and [`Party::compact`] closes it only once that Pass ends -- which is
+/// what holds Slots still under the attack order while a Pass runs (ADR 0009).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Party {
     slots: [Option<Unit>; SLOTS],
@@ -182,7 +182,7 @@ impl Party {
     /// The Slots immediately left and right of `slot` that hold a Unit.
     ///
     /// Adjacency is Slot arithmetic, not a spatial query -- which is only true
-    /// because the sweep fixes positions (ADR 0003).
+    /// because a Party holds still for the length of a Pass (ADR 0009).
     pub fn neighbours(&self, slot: usize) -> Vec<usize> {
         let mut out = Vec::with_capacity(2);
         if slot > 0 && self.get(slot - 1).is_some() {
@@ -336,11 +336,8 @@ mod tests {
         let mut p =
             Party::from_units(vec![unit("a", 1, 1), unit("b", 1, 1), unit("c", 1, 1)]).unwrap();
         p.take(1);
-        assert!(!p.is_packed(), "a hole is expected mid-Sweep");
-        assert!(
-            p.get(2).is_some(),
-            "Slot 2 holds still while the Sweep runs"
-        );
+        assert!(!p.is_packed(), "a hole is expected mid-Pass");
+        assert!(p.get(2).is_some(), "Slot 2 holds still while the Pass runs");
 
         p.compact();
         assert!(p.is_packed());

@@ -3,7 +3,7 @@
 > A minimalist demake of Hearthstone: Battlegrounds with a number of key tweaks that make
 > it a distinct auto-battler.
 
-A gameplay vertical slice of Battlegrounds, *but with* the five deltas below. The deltas
+A gameplay vertical slice of Battlegrounds, *but with* the six deltas below. The deltas
 are the project; everything else is Battlegrounds.
 
 ## The default rule
@@ -24,7 +24,7 @@ Tribes, Tiers, and cascading Triggers (a death summons a Token whose arrival fir
 third Unit's Ability). The fiddly interactions are the point. Content is minimal by
 contrast — a small original Unit set, roughly one per Effect.
 
-## The five deltas
+## The six deltas
 
 ### 1. A Run against a stream, not a lobby — SETTLED
 
@@ -62,6 +62,16 @@ and known, there's nothing to wait for.
 when the Player ends it; the opposing Party is drawn from a pool ahead of time. No
 Ability may ever consult a live opponent, and difficulty must come from the position, not
 a clock.
+
+### 6. The Party is left-anchored, and closes ranks predictably — SETTLED
+
+[ADR 0009](../adr/0009-the-party-is-left-anchored.md). Hearthstone keeps a board centred
+and Battlegrounds is left-anchored only by convention, so neither lets you say from the
+board alone who acts next. Here a Party anchors on its left-most Unit and closes ranks
+toward it — continuously while you arrange it in the Prep Phase, and during the Action
+Phase only at the start of a Pass (one full left-to-right traverse of a Party). A Unit
+that dies mid-Pass leaves its Slot empty until the Pass ends, so nothing shifts under the
+attack order while it is running.
 
 ## Presentation
 

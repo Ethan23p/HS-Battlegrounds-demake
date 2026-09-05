@@ -1,10 +1,10 @@
 # HS-Battlegrounds-demake
 
 A deterministic auto-battler engine in Rust: a vertical slice of Hearthstone: Battlegrounds
-with five deliberate rule changes.
+with six deliberate rule changes.
 
 **Fresh instance? Read, in order:** [`CONTEXT.md`](CONTEXT.md) (glossary),
-[`docs/design/vision.md`](docs/design/vision.md) (the five deltas),
+[`docs/design/vision.md`](docs/design/vision.md) (the six deltas),
 [`docs/design/roadmap.md`](docs/design/roadmap.md) (what "done" means), then skim
 [`docs/adr/`](docs/adr/). ~15 minutes, the whole picture.
 
@@ -56,24 +56,26 @@ python3 scripts/export_transcript.py --list   # available session transcripts
 
 **Built:** RNG ([ADR 0001](docs/adr/0001-own-the-random-number-generator.md)); the
 ability vocabulary as data (provisional, Effects not yet executed); Units/Parties/Slots/
-Board; and **the sweep**, `resolve(board, rng) -> Resolution` — Windfury, Divine Shield,
-Poisonous, Reborn, and Taunt all live. Clippy clean. `cargo run -p bg-sim --example
-watch` prints a narrated fight.
+Board; and **the Action Phase**, `resolve(board, rng) -> Resolution` — Windfury, Divine
+Shield, Poisonous, Reborn, and Taunt all live. Clippy clean. `cargo run -p bg-sim
+--example watch` prints a narrated fight.
 
-Targeting inside the Action Phase is **random, respecting Taunt** — exactly
-Battlegrounds' rule. Simultaneity (both sides' current attacker acting in the same Beat,
-instead of alternating) is the only delta; see
-[ADR 0008](docs/adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md). `rng`
-draws from `Domain::Combat` starting in v0.1, not waiting for Effects.
+Targeting is **random, respecting Taunt**, and every attack draws its own target —
+exactly Battlegrounds' rule. Simultaneity (both sides' current attacker acting in the
+same Beat, instead of alternating) is the only delta in how a fight resolves; see
+[ADR 0008](docs/adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md). Nothing
+ever attacks a Player: that is Hearthstone, not Battlegrounds. `rng` draws from
+`Domain::Combat` starting in v0.1, not waiting for Effects.
 
 **Decided:** one Player against a stream of opposing Parties; the Action Phase resolves
-Beats simultaneously, each side cycling left-to-right through its own Party like
-Battlegrounds does; 8 Slots per Party; asynchronous Rounds, unbounded Prep; three
-loosely-coupled, bounded resources (Economy, Power, Units); an original minimal Unit set;
-no heroes yet; headless-first; Abilities as data through a pipeline with a modifier
-stage. See [`docs/adr/`](docs/adr/).
+Beats simultaneously, each side traversing its own Party left-to-right like Battlegrounds
+does; Parties are left-anchored and close ranks only at a Pass boundary
+([ADR 0009](docs/adr/0009-the-party-is-left-anchored.md)); 8 Slots per Party;
+asynchronous Rounds, unbounded Prep; three loosely-coupled, bounded resources (Economy,
+Power, Units); an original minimal Unit set; no heroes yet; headless-first; Abilities as
+data through a pipeline with a modifier stage. See [`docs/adr/`](docs/adr/).
 
-**The default rule:** undeltered, it works however Battlegrounds works — see the five
+**The default rule:** undeltered, it works however Battlegrounds works — see the six
 deltas in [vision.md](docs/design/vision.md). Numbers start at Battlegrounds' values,
 anchored on 1.
 

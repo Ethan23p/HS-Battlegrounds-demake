@@ -16,7 +16,8 @@ and an Action Phase with no randomness at all. This ADR corrects the record. Sid
 | Attack order | Left to right, alternating sides | Left to right, **resolved simultaneously** |
 | Targeting | Random, unless a Taunt Unit is in play | Random, unless a Taunt Unit is in play — **unchanged** |
 | Taunt | While a Taunt Unit is in the opposing Party, all attacks must target it | **Unchanged** |
-| Windfury | Acts twice on its turn | Acts twice in its Beat — unchanged in effect |
+| Windfury | Acts twice on its turn, choosing a target each time | Acts twice in its Beat, choosing a target each time — **unchanged** |
+| Attacking a Player | Never happens — that is Hearthstone, not Battlegrounds | **Unchanged** |
 | Damage / death | Sequential — the surviving attacker is unambiguous | Simultaneous; **the attacker dies last** |
 
 Only row one is a delta. Everything else is the default rule doing its job: undeltered,
@@ -44,22 +45,18 @@ it works however Battlegrounds works.
 
 ## The mechanism
 
-Each side keeps its own **turn count**, starting at 0 and incrementing every Beat. That
-side's attacker for a Beat is whichever of its living Units sits at
-`turn_count % party.len()`, evaluated fresh each Beat — i.e. Battlegrounds' left-to-right
-cycling through the current board, not a stored pointer that can go stale when a Unit
-dies. Both sides' attackers act in the same Beat: this is simultaneity's entire meaning,
-and the only thing this ADR asks the engine to do differently from Battlegrounds.
+Each side traverses its own Party left to right, one attacker per Beat, wrapping at the
+end. [ADR 0009](0009-the-party-is-left-anchored.md) specifies that traverse — a **Pass** —
+and when the Party closes ranks around its dead. Both sides' attackers act in the same
+Beat: this is simultaneity's entire meaning, and the only thing this ADR asks the engine
+to do differently from Battlegrounds.
 
-A Beat proceeds instance by instance (Windfury's second swing is a second instance).
-Within an instance, both sides' current attacker strike at once: each draws a random
-target from the opposing Party's living Units (respecting Taunt), damage and Poisonous
-apply, and removal is deferred to the end of the Beat — so a Unit fatally wounded in
-instance 0 is still a valid attacker, but not a valid *target*, for instance 1. If an
-attacker's opposing Party is emptied mid-Beat by the other side's simultaneous swing, its
-remaining instances strike the Player directly (Battlegrounds' actual behaviour when a
-board empties mid-turn), which is the only case `damage_to_player`/`damage_to_opposing`
-still record.
+A Beat proceeds attack by attack (Windfury's second attack is a second instance). Within
+an instance, both sides' current attacker strike at once: **each draws its own target**
+from the opposing Party's living Units, respecting Taunt. Damage and Poisonous apply, and
+removal is deferred to the end of the Beat — so a Unit fatally wounded in instance 0 is
+still a valid attacker, but not a valid *target*, for instance 1. An attack that finds
+nothing left standing does not land: no Unit ever attacks a Player.
 
 **Attacker dies last:** when a Beat's deaths are applied, any Unit that died *without*
 attacking this Beat is removed first; a Unit that attacked and also died this Beat is
@@ -67,14 +64,20 @@ removed after. This keeps a kill attributable to its attacker even when the trad
 mutual, which matters once Effects can ask "did I kill something this Beat" (the
 [card survey](../research/card-shape-survey.md)'s kill-attribution capability).
 
-## Flagged for ratification
+## Two calls that were flagged, and how they landed
 
-Two mechanics above aren't in the BG-vs-demake table and are engineering calls, not
-design ones: the `turn_count % len` cycling rule (Battlegrounds' real pointer has messier
-edge cases around a dying attacker; this is the clean version), and re-targeting to the
-Player when a side's board is emptied mid-Beat rather than wasting the swing. Both follow
-the default rule as closely as a well-defined implementation allows. Flagging per project
-convention — correct if either doesn't match your intent.
+This ADR originally invented two mechanics that weren't in the table above, flagged them
+as engineering calls, and got both corrected — worth keeping on the record, since the
+whole reason this ADR exists is unflagged invention drifting into settled rules.
+
+- **An attack with no target left striking the Player: rejected.** It read as
+  Battlegrounds' behaviour and isn't — Hearthstone lets a minion go face, Battlegrounds
+  never does. Such an attack now simply doesn't land, and `Resolution` carries no
+  damage-to-Player totals at all.
+- **`turn_count % party.len()` cycling: replaced**, by the Pass and its compaction rule in
+  [ADR 0009](0009-the-party-is-left-anchored.md). The modulo scheme quietly assumed the
+  Party re-packs after every Beat, which is exactly the positional ambiguity 0009 sets out
+  to remove.
 
 ## Superseded
 
