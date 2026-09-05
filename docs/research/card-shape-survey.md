@@ -12,7 +12,7 @@ HearthPwn, and Hearthstone Top Decks snapshots as they came back in search resul
 verification is via search-result snippets, not direct page reads). Cards are drawn from
 across BG's history — several are currently rotated out of the live pool — because the
 question is about the *shape* of the ability space the game has committed to, not this
-week's exact 300-card roster. Cards I could not verify via search this session are marked
+week's exact roster. Cards I could not verify via search this session are marked
 **UNVERIFIED** and are flagged as drawn from memory; treat their exact wording with more
 skepticism than the verified entries. No code in the repository was read, written, or
 run for this task.
@@ -21,9 +21,9 @@ run for this task.
 
 ## 1. Card-by-card catalogue
 
-Each row: Tribe / Tier (tier is approximate for a few cards — search snippets sometimes
-disagreed with each other on tier, text was prioritized over tier), verified text, and
-the template it was classified into.
+Each row: Tribe / Tier (approximate for a few cards — search snippets sometimes
+disagreed on tier, text was prioritized), verified text, and the template it was
+classified into.
 
 | # | Card | Tribe | Tier | Status | Text | Template |
 |---|------|-------|------|--------|------|----------|
@@ -73,9 +73,8 @@ the template it was classified into.
 
 (43 numbered rows above; one candidate — a Quilboar "gains stats when a friendly minion
 survives lethal damage" card recalled as "Painsmith" — could not be verified this session
-and was dropped rather than guessed, per instructions. Sample size: **43 cards**, close
-to but slightly under the 40–50 target; still spans all 10 tribes plus neutrals and all
-6 tiers.)
+and was dropped rather than guessed. Sample: **43 cards**, spanning all 10 tribes plus
+neutrals and all 6 tiers.)
 
 ---
 
@@ -85,27 +84,18 @@ Templates ranked by number of sampled cards they cover (out of 43).
 
 | Rank | Template | Shape | Count | % of sample |
 |---|---|---|---|---|
-| 1 | **TOKEN-SUMMON-ON-TRIGGER** | On {Battlecry \| Deathrattle \| take-damage}: summon N copies of token T (N fixed or = own current Attack) | 8 | 19% |
-| 2 | **BATTLECRY-TRIBE-BUFF** | Battlecry: give {a friendly minion of tribe X \| all friendly minions of tribe X \| other Mechs} +A/+H and/or a keyword | 6 | 14% |
-| 3 | **TRIBE-SUMMON-TRIGGER-BUFF** | Whenever you summon a minion of tribe X (during combat, for some cards): give {the summoned minion \| self} +A/+H and/or a keyword | 4 | 9% |
-| 4 | **GLOBAL-RULE-MODIFIER** | "Your {Battlecries \| Deathrattles \| summon effects} happen twice" | 3 | 7% |
-| 5 | **END-OF-TURN-BUFF** | At the end of your turn, give {a random friendly minion \| another friendly minion of tribe X} +A/+H permanently | 2 | 5% |
-| 5 | **ON-DEATH-OF-TRIBE-SELF-BUFF** | Whenever a friendly minion of tribe X dies, gain +A/+H | 2 | 5% |
-| 5 | **TURN-SCOPED-COUNTER-SCALED-BUFF** | Effect magnitude = a turn-scoped counter unrelated to the board (Pirates bought this turn; distinct spell types cast this turn) | 2 | 5% |
-| 8 | PLAY-TRIGGER-TRIBE-SELF-EFFECT | After you play a minion of tribe X, apply a self-effect (damage self, buff self) | 1 | 2% |
-| 8 | PLAY-TRIGGER-BY-KEYWORD-SELF-BUFF | Whenever you play a card with keyword K, gain +A/+H | 1 | 2% |
-| 8 | START-OF-COMBAT-TRIBE-SCALED-DAMAGE | Start of Combat: deal N damage (scaled by a friendly-tribe count) to a random enemy | 1 | 2% |
-| 8 | ON-SELL-REWARD | When you sell this, gain a reward | 1 | 2% |
-| 8 | DEATHRATTLE-RANDOM-TARGET-KEYWORD | Deathrattle: give a random friendly minion a keyword | 1 | 2% |
-| 8 | DEATHRATTLE-SUMMON-RANDOM-FILTERED | Deathrattle: summon N random minions matching a tag filter (pool query, not a fixed token) | 1 | 2% |
-| 8 | STATIC-KEYWORD-ONLY | The card is just an evergreen keyword with no additional logic | 1 | 2% |
-| 8 | CLEAVE-ON-ATTACK | Also damages the minion(s) adjacent to whichever enemy this attacks | 1 | 2% |
-| 8 | ON-DAMAGE-TAKEN(HERO)-SELF-BUFF | Whenever your hero takes damage, gain +A/+H | 1 | 2% |
+| 1 | **TOKEN-SUMMON-ON-TRIGGER** | On {Battlecry \| Deathrattle \| take-damage}: summon N copies of token T | 8 | 19% |
+| 2 | **BATTLECRY-TRIBE-BUFF** | Battlecry: give {a \| all \| other Mechs} +A/+H and/or a keyword | 6 | 14% |
+| 3 | **TRIBE-SUMMON-TRIGGER-BUFF** | Whenever you summon tribe X: give {the summon \| self} +A/+H and/or a keyword | 4 | 9% |
+| 4 | **GLOBAL-RULE-MODIFIER** | "Your {Battlecries \| Deathrattles \| summons} happen twice" | 3 | 7% |
+| 5 | **END-OF-TURN-BUFF** | At end of turn, give {random \| tribe X} minion +A/+H permanently | 2 | 5% |
+| 5 | **ON-DEATH-OF-TRIBE-SELF-BUFF** | Whenever a tribe X minion dies, gain +A/+H | 2 | 5% |
+| 5 | **TURN-SCOPED-COUNTER-SCALED-BUFF** | Magnitude = a turn-scoped counter unrelated to the board | 2 | 5% |
+| 8 | (7 singleton templates — see catalogue) | — | 1 each | 2% each |
 | — | *(the 12 fully RESISTING cards, one template each — see §3)* | — | 13 | 30% |
 
-Note: several "resisting" cards are counted once each above and are broken out in the
-resisting list below rather than folded into a false template — that's the point of the
-exercise.
+Several "resisting" cards are counted once each above rather than folded into a false
+template — that's the point of the exercise.
 
 ### Cumulative coverage curve
 
@@ -115,160 +105,106 @@ exercise.
 | Top 10 | 30 | 70% |
 | Top 15 | 35 | 81% |
 
-(Ranking ties broken by the order listed in the table above. The curve flattens fast:
-the long tail past rank ~10 is mostly singleton shapes, several of which are themselves
-partly or fully resisting.)
+The curve flattens fast: past rank ~10 it's mostly singleton shapes, several of which are
+themselves partly or fully resisting.
 
 ---
 
 ## 3. Cards that resist a clean, reusable, purely-parameterized template
 
-For each: the specific mechanical capability the card needs that a simple
-`{trigger, target, magnitude}` triple cannot express.
+For each: the specific capability a simple `{trigger, target, magnitude}` triple cannot
+express.
 
-1. **Baron Rivendare** — "Your minions' Deathrattles trigger twice." Needs to **rewrite
-   how every other card's ability resolves**, not apply an effect of its own. The
-   deathrattle-resolution procedure itself must consult board-wide modifier state.
-2. **Khadgar** — "Your cards that summon minions summon twice as many." Same category:
-   a **global interception of the summon-resolution step**, applying to any card that
-   summons, including ones not yet written.
-3. **Brann Bronzebeard** — "Your Battlecries trigger twice." Same category again: a
-   **global interception of the battlecry-resolution step**.
-4. **Murozond** — "Get a plain copy of a minion from your last opponent's warband."
-   Needs to **read another player's board state as it existed at the end of a previous
-   combat round** — data that has left the live game state by the time this card
-   resolves.
-5. **Kangor's Apprentice** — "Summon your first 2 Mechs that died this combat." Needs an
-   **ordered, tribe-filtered log of deaths that occurred earlier in the current combat**,
-   queried retroactively at the moment this minion's own deathrattle fires. This is
-   state that must be built up incrementally during combat resolution and then read
-   back, not a value computed once.
-6. **Southsea Strongarm** — "Repeat for each Pirate you bought this turn." Needs to read
-   a **turn-scoped counter from the shop/economy layer** (purchases this turn) and use
-   it as an effect's magnitude — the trigger condition lives entirely outside combat
-   and outside the board.
-7. **Slitherspear, Lord of Gains** — buff scaled "by each different spell you've cast
-   this turn." Needs a **turn-scoped count of distinct spell *types* cast**, a derived
-   value with its own dedup logic, not a simple counter increment.
-8. **Herald of Flame** — "Overkill: Deal 3 damage to the left-most enemy minion." Needs
-   (a) an **Overkill trigger**, which requires knowing how much damage exceeded the
-   target's remaining health at the moment of a kill (a value from inside the combat
-   damage-resolution math, not an event flag), and (b) a **positional target**
-   ("left-most enemy") that must be recomputed as minions die during combat.
-9. **Wildfire Elemental** — "deal excess damage to an adjacent enemy." Same excess/overkill
-   value requirement as Herald of Flame, plus needs the **currently-adjacent minion**
-   relative to a shrinking, reordering board.
-10. **Waxrider Togwaggle** — "Whenever a friendly Dragon kills an enemy, gain +2/+2."
-    Needs **kill attribution**: at the moment an enemy minion dies during combat, the
-    engine must know *which* friendly minion's attack (and that minion's tribe) caused
-    it, not just that a death occurred.
-11. **Cave Hydra** — "Also damages the minions next to whomever this attacks." Needs
-    live **adjacency**: "the minion(s) currently to the left/right of the target," which
-    changes every time a minion on either side dies mid-combat.
-12. **Goldrinn, the Great Wolf** — "For the rest of this combat, your Beasts have
-    +12/+12." Needs a **third buff-duration class**: not a permanent stat grant (like
-    almost every other buff card) and not a continuously-recomputed aura (BG mostly
-    avoids those, see §4), but a buff that applies for the remainder of *this specific
-    combat only* and must be discarded when combat ends, even though the minions
-    receiving it persist into the next recruit phase unbuffed.
-13. **Tough Tusk** — "After a Blood Gem is played on this, gain Divine Shield for the
-    next combat." The trigger condition is not a generic game event but a specific
-    secondary resource type (Blood Gems) with its own economy — the effect vocabulary
-    would need to know about that resource subsystem specifically, not just "a spell
-    was cast on this."
-14. **Replicating Menace** *(Magnetic)* — beyond its plain deathrattle, Magnetic itself
-    ("play this to the left of a friendly Mech to merge its stats and keywords into it")
-    is a **placement-dependent alternate play rule**, not an effect that fires after the
-    card resolves normally — it changes what "playing this card" even means depending on
-    where you drop it and what's already there.
+1. **Baron Rivendare / Khadgar / Brann Bronzebeard** — each rewrites how *other* cards'
+   abilities resolve (deathrattles, summons, battlecries triggering twice), not applying
+   an effect of their own. Needs a **global interception of the relevant resolution
+   step**, applying to cards not yet written.
+2. **Murozond** — "Get a plain copy of a minion from your last opponent's warband."
+   Needs to **read another player's board state from a previous combat round** — data
+   gone from live game state by the time this resolves.
+3. **Kangor's Apprentice** — "Summon your first 2 Mechs that died this combat." Needs an
+   **ordered, filtered death log for the current combat**, built incrementally and read
+   back retroactively.
+4. **Southsea Strongarm / Slitherspear** — magnitude scales off a **turn-scoped counter
+   from outside combat** (Pirates bought this turn; distinct spell types cast), living
+   entirely in the shop/economy layer.
+5. **Herald of Flame / Wildfire Elemental** — need an **Overkill trigger** (damage
+   exceeding lethal, from inside the damage-math step) plus, for Herald, a **positional
+   target** ("left-most enemy") recomputed as minions die.
+6. **Waxrider Togwaggle** — "Whenever a friendly Dragon kills an enemy, gain +2/+2."
+   Needs **kill attribution**: which friendly minion (and its tribe) caused a given
+   death.
+7. **Cave Hydra** — cleave onto minions adjacent to the attack target. Needs live
+   **adjacency**, recomputed as neighbours die mid-combat.
+8. **Goldrinn, the Great Wolf** — "For the rest of this combat, your Beasts have
+   +12/+12." Needs a **third buff-duration class**: neither permanent nor a recomputed
+   aura, but scoped to the current combat only.
+9. **Tough Tusk** — trigger keyed to a specific secondary resource (Blood Gems), not a
+   generic game event — the vocabulary would need to know that subsystem specifically.
+10. **Replicating Menace** *(Magnetic)* — beyond its plain deathrattle, Magnetic is a
+    **placement-dependent alternate play rule**, changing what "playing this card" means
+    depending on where you drop it.
 
-**13 of 43 sampled cards (30%)** need one of these extra capabilities. A few more
-(Herald of Flame, Wildfire Elemental, Cave Hydra, Goldrinn) are double-counted across
-categories 8–12 above because they need more than one capability at once — that overlap
-itself is a data point: the hardest cards tend to need *combinations* (overkill +
-position; kill-attribution + combat-scope), not just one extra primitive each.
+**13 of 43 sampled cards (30%)** need one of these extra capabilities; several (Herald of
+Flame, Wildfire Elemental, Cave Hydra, Goldrinn) need more than one at once — the hardest
+cards tend to need *combinations*, not just one extra primitive each.
 
 ---
 
 ## 4. Cross-cutting mechanics the per-card view misses
 
-- **Auras that must be recomputed are rarer than you'd expect.** The overwhelming
-  majority of "X gets stronger" cards in this sample (Scavenging Hyena, Pack Leader,
-  Mama Bear, Iron Sensei, Wrath Weaver, Crowd Favorite, Junkbot, Floating Watcher, King
-  Bagurgle, Rockpool Hunter, Houndmaster, Metaltooth Leaper, Coldlight Seer) are
-  **discrete, triggered, permanent stat grants** — "on event E, add +A/+H to the
-  minion's stats, once, forever" — not continuously-recomputed static auras ("while
-  this is alive, other minions have +X"). Goldrinn is the one clear exception in this
-  sample (a temporary, combat-scoped buff, not a recomputed aura either). This matters:
-  it means the design space BG has actually chosen mostly avoids the hardest aura
-  problem (dependency-graph recomputation), which is good news for a data vocabulary —
-  but it means "permanent buff" and "combat-scoped buff" both need to exist as distinct
-  primitives, and neither is a true continuous aura.
+- **Recomputed auras are rarer than expected.** Most "X gets stronger" cards
+  (Scavenging Hyena, Pack Leader, Mama Bear, Iron Sensei, Wrath Weaver, Crowd Favorite,
+  Junkbot, Floating Watcher, King Bagurgle, Rockpool Hunter, Houndmaster, Metaltooth
+  Leaper, Coldlight Seer) are **discrete, triggered, permanent stat grants**, not
+  continuously-recomputed static auras. Goldrinn is the one clear exception (a temporary,
+  combat-scoped buff). BG mostly avoids the hardest aura problem — but "permanent" and
+  "combat-scoped" both need to exist as distinct primitives.
 - **Triggers fire off other triggers' consequences.** Imp Gang Boss and Security Rover
-  summon a minion when *they* take damage; Deflect-o-Bot and Cobalt Guardian react
-  whenever *any* Mech is summoned, including one just created by Imp Gang Boss's or
-  Replicating Menace's own trigger firing mid-combat. The engine needs to support
-  **trigger chains of arbitrary depth** (a trigger's effect can itself satisfy another
-  trigger's condition), in a well-defined order, with some guard against runaway loops —
-  this is not visible from any single card's text, only from combinations.
-- **Board position/adjacency is load-bearing, not decorative.** Cave Hydra (cleave),
-  Wildfire Elemental (excess-damage spillover), and Herald of Flame (left-most target)
-  all need "who is next to whom" or "who is at the edge" as a first-class, dynamically
-  recomputed relationship — the board shrinks and reorders constantly during combat as
-  minions die, so this can't be baked in once at combat start.
-- **State must survive combat-phase boundaries differently depending on the card.**
-  Permanent buffs earned during combat (Pack Leader's Beast buffs, Iron Sensei's Mech
-  buffs, Deflect-o-Bot's stacked Attack/Divine Shield) carry forward into the next
-  recruit phase and the rest of the game. Goldrinn's buff explicitly does **not** —
-  "for the rest of this combat" means it must be wiped when combat ends even though nothing
-  else about the minions changes. A data vocabulary needs at least two different
-  persistence semantics for "a minion has +A/+H," not one.
-- **Global modifiers change how other cards' data should be interpreted, not just what
-  effects exist.** Brann, Khadgar, and Baron Rivendare are the sharpest version of this:
-  they are themselves simple one-line cards, but supporting them means the code path
-  that resolves *any other card's* Battlecry/summon/Deathrattle must first check "is
-  there an active doubling modifier?" This is a resolution-pipeline concern that sits
-  above the per-card effect vocabulary, not a fourth kind of effect card.
-- **Turn-scoped and combat-scoped counters exist outside the board entirely.** Southsea
-  Strongarm (Pirates bought this turn) and Slitherspear (distinct spells cast this turn)
-  both need small pieces of derived state that reset every turn and have nothing to do
-  with any minion's current stats — a parallel bookkeeping layer alongside "what's on
-  the board."
+  summon on taking damage; Deflect-o-Bot and Cobalt Guardian react to any Mech summon,
+  including ones just created mid-combat by another trigger. The engine needs **trigger
+  chains of arbitrary depth**, in a well-defined order, with a guard against runaway
+  loops.
+- **Board adjacency is load-bearing, not decorative.** Cave Hydra, Wildfire Elemental,
+  and Herald of Flame all need "who's next to whom" or "who's at the edge" as a
+  first-class, dynamically recomputed relationship, since the board shrinks and reorders
+  constantly during combat.
+- **State survives phase boundaries differently per card.** Permanent buffs (Pack
+  Leader, Iron Sensei, Deflect-o-Bot) carry into the next Prep Phase; Goldrinn's
+  explicitly doesn't. A data vocabulary needs at least two persistence semantics for "a
+  minion has +A/+H."
+- **Global modifiers change how other cards' data is interpreted.** Brann, Khadgar, and
+  Baron Rivendare are simple one-liners, but supporting them means any other card's
+  Battlecry/summon/Deathrattle resolution must first check for an active doubling
+  modifier — a resolution-pipeline concern above the per-card effect vocabulary.
+- **Turn/combat-scoped counters exist outside the board entirely.** Southsea Strongarm
+  and Slitherspear both need small pieces of derived state, reset every turn, unrelated
+  to any minion's stats — a parallel bookkeeping layer.
 
 ---
 
 ## 5. Bottom line
 
-In this 43-card, all-tier, all-tribe sample, roughly **70% of cards** are expressible as
-data instances of about ten reusable trigger/target/magnitude templates (the "top 10"
-column above), and coverage climbs to about **80%** if you're willing to add a longer
-tail of one-off-but-still-simple templates (top 15). The remaining **~20–30%** clusters
-tightly around a small number of *capabilities*, not a scattering of unrelated special
-cases. In rough order of how much coverage each would unlock:
+In this 43-card, all-tier, all-tribe sample, roughly **70% of cards** reduce to data
+instances of about ten reusable trigger/target/magnitude templates, climbing to **~80%**
+with a longer tail of one-off-but-simple templates (top 15). The remaining **~20–30%**
+clusters around a small number of *capabilities*, not scattered special cases, in rough
+order of how much coverage each would unlock:
 
-1. **A first-class, dynamically-recomputed board-adjacency relationship** ("the minion(s)
-   next to X," "the left-most enemy") — needed by cleave, overkill-spillover, and
-   positional-target cards, and it changes every time a minion dies mid-combat.
-2. **Access to combat-resolution internals, not just combat events** — specifically
-   *overkill/excess damage* (how much a killing blow exceeded lethal) and
-   *kill-attribution* (which friendly minion's attack, of what tribe, caused a given
-   death) — both live inside the damage-math step, not in a simple "on kill" event.
+1. **Dynamically-recomputed board adjacency** — needed by cleave, overkill-spillover,
+   and positional-target cards.
+2. **Access to combat-resolution internals** — overkill/excess damage and
+   kill-attribution, both inside the damage-math step, not a simple "on kill" event.
 3. **A resolution-pipeline interception point for global rule modifiers** ("your X
-   happen twice") — these are simple to describe but require every other card's
-   ability-resolution code path to consult board-wide state before firing, which is a
-   different kind of hook than "run effect E when event T happens."
-4. **More than one buff-duration/persistence class** — at minimum, "permanent" and
-   "for the rest of this combat only," since both patterns appear on staple cards and
-   they behave differently at phase boundaries; true continuously-recomputed static
-   auras are thankfully rare in the sampled pool.
-5. **Read access to state outside the live board** — turn-scoped counters unrelated to
-   minion stats (purchases this turn, distinct spells cast this turn), an ordered
-   per-combat death log queryable retroactively, and a snapshot of an opponent's board
-   from a previous round. These are less about *effect* vocabulary and more about what
-   *queryable game state* exists for an effect to read.
+   happen twice") — every other card's resolution path must consult board-wide state
+   before firing.
+4. **More than one buff-duration class** — at minimum "permanent" and "for the rest of
+   this combat"; true continuously-recomputed auras are rare in this pool.
+5. **Read access to state outside the live board** — turn-scoped counters, an ordered
+   per-combat death log, and a cross-round opponent snapshot.
 
-Everything else in the sample — the large majority of cards, including nearly every
-tribe's defining synergy piece (Rat Pack, Pack Leader, Scavenging Hyena, Imp Gang Boss,
-King Bagurgle, Deflect-o-Bot, Iron Sensei, Sellemental) — reduces cleanly to "on trigger
-T, apply effect E (buff/summon/keyword) to target selector S, scaled by magnitude M,"
-with T, E, S, and M drawn from a modest fixed vocabulary.
+Everything else in the sample — the large majority, including nearly every tribe's
+defining synergy piece (Rat Pack, Pack Leader, Scavenging Hyena, Imp Gang Boss, King
+Bagurgle, Deflect-o-Bot, Iron Sensei, Sellemental) — reduces cleanly to "on trigger T,
+apply effect E to selector S, scaled by magnitude M," drawn from a modest fixed
+vocabulary.
