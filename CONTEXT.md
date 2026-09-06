@@ -42,7 +42,7 @@ _Avoid_: tick, turn, step, exchange, pass
 has a Ready Unit left, every Unit becomes Ready again — the moment *before the first Unit
 acts*, and the only boundary the clock has (see
 [ADR 0010](docs/adr/0010-the-clock-is-a-beat-counter.md)). So everything standing when the
-Board came Ready acts exactly once before any of it acts again.
+Board came Ready has had its turn before any of it acts twice.
 _Avoid_: active, awake, untapped, available
 
 ## Units and Parties

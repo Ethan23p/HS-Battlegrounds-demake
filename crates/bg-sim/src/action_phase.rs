@@ -18,8 +18,8 @@
 //!
 //! Because readiness rides on the Unit rather than on a Slot number, a Party can
 //! close up behind its dead the instant they fall without the clock skipping a
-//! Unit or visiting one twice. Every Unit standing when the Board came Ready acts
-//! exactly once before any of them acts again.
+//! Unit or visiting one twice. Nothing acts twice before everything standing has
+//! had its turn; a Unit that dies before its turn comes never gets one.
 //!
 //! The rest is Battlegrounds' own:
 //!

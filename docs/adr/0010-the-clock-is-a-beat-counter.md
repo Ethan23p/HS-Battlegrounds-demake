@@ -58,8 +58,8 @@ in it:
 Only the third column gets the right answer *and* a Party with nothing in it but Units.
 The guarantee 0009 spent gaps to buy — a death never grants a Beat to a Unit that already
 acted, nor steals one from a Unit that hasn't — now falls out of where the state lives.
-**Everything standing when the Board came Ready acts exactly once before any of it acts
-again**, whatever dies in between.
+**Nothing acts twice before everything standing has had its turn** — and a Unit that dies
+before its turn comes simply never gets one, which is the only way to lose a turn.
 
 ## Consequences
 
@@ -92,9 +92,9 @@ the clock acts, behind it waits — and that answer is gone with the gaps.
 
 Nothing can summon yet, so nothing observes this today; the decision belongs with
 [ADR 0007](0007-abilities-are-data-with-a-modifier-stage.md)'s Effects. The recommendation
-is **not Ready**: it keeps "everything standing when the Board came Ready acts exactly
-once before any of it acts again" literally true, and it stops a summon chain from
-extending an enumeration indefinitely. Battlegrounds is closer to the other answer, so
+is **not Ready**: it keeps "nothing acts twice before everything standing has had its
+turn" literally true, and it stops a summon chain from extending an enumeration
+indefinitely. Battlegrounds is closer to the other answer, so
 this is a delta if taken, and Ethan's call.
 
 ## Supersedes
