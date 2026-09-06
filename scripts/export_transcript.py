@@ -43,10 +43,14 @@ Each line is a standalone JSON object ("event"). The event's top-level
                          "is_error" (bool). These are tool plumbing,
                          with ONE exception: the result of a
                          multiple-choice question (AskUserQuestion)
-                         wraps the human's own answer, in the form
-                         'The user answered: "<question>"="<answer>"'.
-                         Those words were typed by a person and are
-                         recovered as ordinary human turns -- see
+                         wraps the human's own answer, in a form like
+                         'The user answered: "<question>"="<answer>"'
+                         or 'Your questions have been answered:
+                         "<question>"="<answer>". You can now
+                         continue...' -- the wording has already been
+                         observed to vary. Those words were typed by a
+                         person and are recovered as ordinary human
+                         turns regardless of phrasing -- see
                          extract_answers().
                Two harness signals mark a "user" line as NOT human-typed
                conversation:
@@ -173,7 +177,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -220,11 +223,17 @@ META_SUBSTRING_SEARCH_CHARS = 400
 INTERRUPT_MARKER = "[Request interrupted by user]"
 
 # A multiple-choice answer arrives as a tool result wrapping the human's own
-# words. These markers pick it out and strip the harness framing around it.
-ANSWER_PREFIX = "The user answered:"
-ANSWER_TRAILERS = (
-    ". Read the answers carefully",
-    "Read the answers carefully",
+# words. The exact lead-in phrasing has already been observed to differ
+# between harness versions/tools ("The user answered: ..." vs. "Your
+# questions have been answered: ..."), each with its own trailing sentence
+# ("Read the answers carefully" vs. "You can now continue with these answers
+# in mind") -- so this is a growable allowlist of *signal* phrases used only
+# to gate detection, not to delimit the text precisely. The actual "q"="a"
+# pairs are pulled out with ANSWER_PAIR_RE, which does not anchor to the end
+# of the string, so it is indifferent to whatever trailing sentence follows.
+ANSWER_SIGNAL_PHRASES = (
+    "The user answered:",
+    "Your questions have been answered:",
 )
 
 # Content-block "type" values we understand within a "user" line's content
@@ -367,6 +376,67 @@ def tool_result_text(block: dict) -> str:
     return str(content)
 
 
+def split_qa_pairs(text: str) -> list[tuple[str, str]]:
+    """Split `"q1"="a1", "q2"="a2", ...` into (question, answer) pairs.
+
+    The harness does not escape quotes embedded *within* a question or
+    answer -- a question can itself quote a term (e.g. `...clustering on
+    five named capabilities -- chiefly "global rule modifiers" like
+    Brann/Baron...`) -- so this cannot be parsed with a single
+    non-overlapping regex like `"([^"]*)"="([^"]*)"` without mis-splitting
+    on that embedded quote (an earlier version of this function did exactly
+    that, truncating the recovered question to the text after the last
+    embedded quote).
+
+    Instead this walks the string using the one substring that reliably
+    marks a question/answer boundary regardless of what quotes appear
+    inside either side: the literal three characters `"="`. A pair ends
+    either at a following `", "` that is itself followed by another `"="`
+    (i.e. another pair follows), or otherwise at the last `"` in the
+    remaining text (i.e. this is the final pair, and whatever trailing
+    prose the harness appends -- "Read the answers carefully",
+    "You can now continue with these answers in mind", or a future
+    variant -- contains no quote of its own to be confused with).
+
+    This still fails if a question or answer contains the literal
+    substring `"="`, or if trailing prose after the last pair contains a
+    `"`. Neither has been observed in practice.
+    """
+    pairs: list[tuple[str, str]] = []
+    start = text.find('"')
+    if start == -1:
+        return pairs
+    rest = text[start:]
+    while rest.startswith('"'):
+        sep = rest.find('"="', 1)
+        if sep == -1:
+            break
+        question = rest[1:sep]
+        after_sep = rest[sep + 3 :]
+
+        next_pair_at = -1
+        search_from = 0
+        while True:
+            comma_idx = after_sep.find('", "', search_from)
+            if comma_idx == -1:
+                break
+            if '"="' in after_sep[comma_idx + 4 :]:
+                next_pair_at = comma_idx
+                break
+            search_from = comma_idx + 1
+
+        if next_pair_at != -1:
+            answer = after_sep[:next_pair_at]
+            pairs.append((question.strip(), answer.strip()))
+            rest = after_sep[next_pair_at + 3 :]  # lands on next pair's opening quote
+        else:
+            close = after_sep.rfind('"')
+            answer = after_sep[:close] if close != -1 else after_sep
+            pairs.append((question.strip(), answer.strip()))
+            break
+    return pairs
+
+
 def extract_answers(block: dict) -> list[tuple[str, str]]:
     """Human answers to a multiple-choice question, as (question, answer).
 
@@ -376,20 +446,38 @@ def extract_answers(block: dict) -> list[tuple[str, str]]:
     archive that drops them is not the record it claims to be, so they are
     recovered here and rendered as ordinary human turns.
 
+    Detection is gate-then-extract, deliberately loose on the surrounding
+    wording but strict on *position*: the text must START WITH (after
+    stripping whitespace) one of ANSWER_SIGNAL_PHRASES, not merely contain
+    it. The harness has already been observed using more than one
+    lead-in/trailer phrasing ("The user answered: ... Read the answers
+    carefully" vs. "Your questions have been answered: ... You can now
+    continue with these answers in mind"), so anchoring to one exact pair
+    is brittle -- but a *contains* check is unsafe in the other direction:
+    a Bash tool result that greps or cats source discussing this very
+    format (as happened debugging this function) will contain the phrase
+    buried in the middle of unrelated output, and misfires as a recovered
+    answer. A real AskUserQuestion result is the harness's own short,
+    fixed-format wrapper and always leads with the phrase; nothing else
+    plausibly does.
+
     Returns an empty list for every other kind of tool result.
     """
     text = tool_result_text(block)
-    if not text.lstrip().startswith(ANSWER_PREFIX):
+    stripped = text.lstrip()
+    if not any(stripped.startswith(phrase) for phrase in ANSWER_SIGNAL_PHRASES):
         return []
-    body = text.lstrip()[len(ANSWER_PREFIX) :]
-    for tail in ANSWER_TRAILERS:
-        cut = body.rfind(tail)
-        if cut != -1:
-            body = body[:cut]
-    pairs = re.findall(r'"(.*?)"="(.*?)"(?=,\s*"|\s*\.?\s*$)', body, flags=re.DOTALL)
+    pairs = split_qa_pairs(text)
     if pairs:
-        return [(q.strip(), a.strip()) for q, a in pairs]
-    # Shape drifted; keep the words rather than losing them.
+        return pairs
+    # A signal phrase matched but no "q"="a" pair was found -- the shape has
+    # drifted further than expected. Keep the words rather than losing them.
+    body = text
+    for phrase in ANSWER_SIGNAL_PHRASES:
+        idx = body.find(phrase)
+        if idx != -1:
+            body = body[idx + len(phrase) :]
+            break
     return [("", body.strip().strip('".'))]
 
 

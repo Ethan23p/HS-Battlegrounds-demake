@@ -1,16 +1,17 @@
 ---
 session_id: 7e14bc36-1a5c-562e-80d1-d6857cb7d317
-export_date: 2026-09-05T13:35:52Z
+export_date: 2026-09-06T05:15:11Z
 source_path: /root/.claude/projects/-home-user-HS-Battlegrounds-demake/7e14bc36-1a5c-562e-80d1-d6857cb7d317.jsonl
 include_tools: false
 message_counts:
-  lines_total: 641
-  user_turns: 13
-  assistant_turns: 220
-  user_lines_filtered_as_noise: 107
-  tool_calls_omitted: 98
-  tool_results_omitted: 97
-  thinking_blocks_omitted: 66
+  lines_total: 881
+  user_turns: 17
+  assistant_turns: 302
+  user_lines_filtered_as_noise: 148
+  tool_calls_omitted: 140
+  tool_results_omitted: 139
+  answers_recovered: 1
+  thinking_blocks_omitted: 82
   parse_errors: 0
   unknown_block_shapes: 0
 ---
@@ -695,6 +696,14 @@ Never discussed. `units.rs` still carries a speculative `HeroDef` I wrote before
 
 And the technical decision you've been waiting on, now that Q8 has settled the rate question:
 
+## User
+
+*(answering: How should a Unit's abilities be expressed in the codebase? (The card survey found ~30% of a real BG pool resists pure parameterisation, clustering on five named capabilities — chiefly "global rule modifiers" like Brann/Baron that rewrite how *other* cards resolve.))*
+
+Data + pipeline hook (Recommended)
+
+## Claude
+
 Recorded. Let me write that decision down properly — including what the hook actually *is*, since "pipeline hook" is vague enough to become a dumping ground if I leave it at that.
 
 ADR 0007 recorded and pushed. I specified what the hook actually *is*, because "pipeline hook" is vague enough to rot: **resolution is a pipeline with a modifier stage, and modifiers are themselves data** from their own small vocabulary. "Your Deathrattles trigger twice" becomes a declared transform over effects, not a hand-written exception for one Unit.
@@ -795,3 +804,109 @@ I'll respond in a moment - we're working on something else in parallel, could yo
 Sure — exporting now.
 
 That's this session — it grew a lot since the first export (0001 was ~932KB, now 2MB). Exporting fresh and checking it against the archive convention before committing.
+
+That matches the documented convention exactly — 0001 was a snapshot of this same still-running session, and the README says a continued session gets a new later-numbered file rather than overwriting the old one. Let me verify the export before committing.
+
+Both are my own prose describing the earlier bug fix, not actual leaks — no filter regression. Export is clean: 10 user turns verbatim, all harness noise stripped, 98 tool calls and 66 thinking blocks omitted as designed.
+
+Saved and pushed: `docs/transcripts/0002-vocabulary-and-action-phase.md`.
+
+10 human turns verbatim, harness noise stripped — covers the vocabulary settling (Units, Parties, Slots, Cards), the positional-sweep and asynchronous-Run decisions, the effect-model ADR, and the Action Phase build. Verified against the archive's own convention: 0001 snapshotted this same session near its start, and the README already specifies that a continued session gets a new later-numbered export rather than overwriting the old one — so this is exactly the intended workflow, not a special case.
+
+I'm here whenever you're ready — no rush.
+
+## User
+
+!python3 scripts/export_transcript.py --session 7e14bc36-1a5c-562e-80d1-d6857cb7d317 --out docs/transcripts/0002-vocabulary-and-action-phase.md
+
+## Claude
+
+That command didn't actually run — the file's unchanged since my last export. Running it now.
+
+Clean, verbatim, noise-free. Now updating this same file *is* correct here — the exporter is deterministic over the same session ID, so re-running it against a growing transcript naturally extends the same snapshot rather than creating a new one; this isn't the "continued session → new file" case from the README, since I'm re-running against the identical file path within the same short window, not archiving a since-elapsed session.
+
+Push was rejected — remote has commits I don't have locally. Fetching before I do anything else.
+
+## User
+
+*(user interrupted Claude's previous turn)*
+
+## Claude
+
+No response requested.
+
+## User
+
+The transcript exporter has been dropping answers to multiple-choice questions (`AskUserQuestion`) — they arrive as tool results rather than user messages, so the noise filter treated them as plumbing even though the words are Ethan's. This means [docs/transcripts/0002-vocabulary-and-action-phase.md](https://github.com/Ethan23p/HS-Battlegrounds-demake/blob/claude/reduce-docs-size-1ggc5c/docs/transcripts/0002-vocabulary-and-action-phase.md), which you exported, is missing at least one real message: search it for "And the technical decision you've been waiting on" and you'll find it followed immediately by "Recorded." — Ethan's answer to the effect-model modal, the decision behind ADR 0007, fell in that gap.
+The fix is on branch `claude/reduce-docs-size-1ggc5c` (commit 764db08). Please:
+
+1. `git fetch origin claude/reduce-docs-size-1ggc5c` and take [scripts/export_transcript.py](https://github.com/Ethan23p/HS-Battlegrounds-demake/blob/claude/reduce-docs-size-1ggc5c/scripts/export_transcript.py) from it (`git checkout origin/claude/reduce-docs-size-1ggc5c -- scripts/export_transcript.py`), or merge the branch if that's cleaner.
+2. Re-export your own session over the existing file — same span, more faithful, so overwrite rather than adding a new number:
+
+```
+python3 scripts/export_transcript.py \
+  --session 7e14bc36-1a5c-562e-80d1-d6857cb7d317 \
+  --out docs/transcripts/0002-vocabulary-and-action-phase.md
+```
+
+3. Check the front matter now reports `answers_recovered:` with a non-zero count, and that the "Recorded." gap has Ethan's answer above it. Leave `0001` alone — it's a deliberate earlier snapshot of the same session, and `0002` covers the full span anyway.
+4. Commit it. If the recovered answer changes what ADR 0007 should say, flag that rather than editing the ADR silently.
+
+## Claude
+
+Clean tree, my last commit didn't push yet. Let me fetch both branches and reconcile.
+
+That's the fix — clean, well-reasoned, and not yet in origin's main branch. Let me take just this file cleanly, keeping origin's main branch as my working base rather than my stale local history.
+
+Working tree is clean and my only unpushed commit touched nothing but this exact transcript file, which is about to be regenerated anyway. Safe to reset onto origin's tip.
+
+Now re-export over the existing file, same session, same span.
+
+The fix didn't recover anything here — `answers_recovered: 0`, and the gap is still there. Let me find the actual raw event and see why the regex missed it.
+
+Found the actual bug: the fix's regex looks for the prefix `"The user answered:"`, but this session's `AskUserQuestion` result literally reads **`"Your questions have been answered: ..."`** — different wording entirely. That's a real gap in the sibling's fix, not something my re-export can route around. Let me look at the full function before patching.
+
+The mismatch is real: the harness used **"Your questions have been answered:"** here, not "The user answered:" from the sibling's fix, and the trailing text after the answer differs too ("You can now continue..." vs "Read the answers carefully"). The fix's regex anchors to end-of-string, so it breaks whenever trailing prose differs. I'll generalize rather than add one more hardcoded case.
+
+Also updating the module docstring's example, since it hardcodes the old phrasing.
+
+Now compile-check and re-export.
+
+`answers_recovered: 8`, and the gap now reads:
+
+```
+## User
+
+*(answering: like Brann/Baron that rewrite how *other* cards resolve.))*
+
+Data + pipeline hook (Recommended)
+```
+
+The answer is there — "Data + pipeline hook (Recommended)" — but the question label is a truncated mid-sentence fragment, not the actual question. That's because the source question text itself contains embedded parentheses and (elsewhere in the transcript) quote-like punctuation, and my simpler `[^"]*` pattern grabs everything between the *nearest* quotes rather than the true question boundary — the original long question text has no literal `"` inside it, so that's not it... let me check the actual raw text more carefully.
+
+The nested quotes inside the question text (`chiefly "global rule modifiers" like Brann/Baron...`) break any regex based on plain `"..."="..."` matching — my simplification introduced its own bug. This needs a real parser, not a smarter regex. Let me write and test one directly against the actual string before touching the script.
+
+Both cases parse correctly, including the nested-quote question and multi-pair splitting. Wiring it into the script, replacing the regex.
+
+`re` is now unused entirely — removing the import too, and replacing `extract_answers` with the tested parser.
+
+Now add the parser function and rewrite `extract_answers` to use it.
+
+**Fixed.** The gap now reads correctly:
+
+```
+## User
+
+*(answering: How should a Unit's abilities be expressed in the codebase?
+(The card survey found ~30% of a real BG pool resists pure parameterisation,
+clustering on five named capabilities — chiefly "global rule modifiers" like
+Brann/Baron that rewrite how *other* cards resolve.))*
+
+Data + pipeline hook (Recommended)
+```
+
+Full question intact, embedded quote preserved, correct answer. `answers_recovered: 9`. Let me verify the other 8 recovered answers look sane before committing, then decide on the ADR 0007 question.
+
+Real bug, and a nastier one: the signal-phrase gate matches **anywhere in the text**, so my own Bash debugging output — which quoted the exporter's source and earlier export excerpts containing the literal phrase "Your questions have been answered:" — got misparsed as if it were itself an answer. Let me confirm before fixing.
+
+Confirmed: only line 544 (the real answer) starts with a signal phrase. All eight false positives are my own debugging Bash output that merely *contains* the phrase deep inside. Fixing the gate to anchor on prefix.
