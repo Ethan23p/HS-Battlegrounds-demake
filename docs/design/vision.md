@@ -70,11 +70,12 @@ and known, there's nothing to wait for.
 
 [ADR 0003](../adr/0003-the-action-phase-is-a-simulation-of-beats.md),
 [ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md),
-[ADR 0009](../adr/0009-the-party-is-left-anchored.md). A Beat is a time-step of the
-Board: Beat 0 closes ranks, and Beat *n* resolves Slot *n* — on both sides at once, so
-nobody swings first. Targeting stays random and Taunt still constrains it, exactly as in
-Battlegrounds. The one real consequence: two evenly-matched Units can now trade blows and
-die together.
+[ADR 0010](../adr/0010-the-clock-is-a-beat-counter.md). A Beat is a time-step of the
+Board: in each one, the left-most Unit of each Party that still owes a turn acts — on both
+sides at once, so nobody swings first. Beats count from 1 and never reset; there is no
+unit of time above them. Targeting stays random and Taunt still constrains it, exactly as
+in Battlegrounds. The one real consequence: two evenly-matched Units can now trade blows
+and die together.
 
 > *instead of resolving combat back and forth in turns, I'd like each turn of attacks to
 > resolve simultaneously (rock, paper, scissors is a real model)* —
@@ -84,8 +85,11 @@ die together.
 > shape — *the action phase resolves from left to right and units in the same slot are
 > synchronous.* Made a clock in
 > [0003](../transcripts/0003-action-phase-corrections.md): *let's make canonical that a
-> 'beat' is a time-step — so no per party passes ... beat 0 is compaction, beat 1 is slot
-> 1.*
+> 'beat' is a time-step - so no per party passes.* Made the *only* clock in
+> [0004](../transcripts/0004-the-beat-counter.md): *the passage of time only happens
+> through beats, beats progress at a consistent rate in one direction within a round(they
+> don't reset), there's no concept of "now we are looping back to the start" but there
+> should be a concept of "we've ennumerated through all party members"*
 
 #### 5. The attacker dies last — SETTLED
 
@@ -110,19 +114,23 @@ every empty Slot a decision.
 > ... *(I just like 8 &/or powers of 2)* —
 > [transcript 0002](../transcripts/0002-vocabulary-and-action-phase.md).
 
-#### 7. The Party is left-anchored, and closes ranks predictably — SETTLED
+#### 7. The Party is left-anchored, and never holds a gap — SETTLED
 
-[ADR 0009](../adr/0009-the-party-is-left-anchored.md). Hearthstone keeps a board centred
-and Battlegrounds is left-anchored only by convention, so neither lets you say from the
-board alone who acts next. Here a Party anchors on its left-most Unit and closes ranks
-toward it — continuously while you arrange it in the Prep Phase, and during the Action
-Phase only at Beat 0. A Unit that dies mid-Pass leaves its Slot empty until the next
-Beat 0, so nothing shifts under the clock while a Pass is running.
+[ADR 0009](../adr/0009-the-party-is-left-anchored.md), whose mechanism
+[ADR 0010](../adr/0010-the-clock-is-a-beat-counter.md) replaces. Hearthstone keeps a board
+centred and Battlegrounds is left-anchored only by convention, so neither lets you say
+from the board alone who acts next. Here a Party is an unbroken run anchored on its
+left-most Unit: a death closes it up at once, and a Slot is simply where a Unit stands
+rather than an address that can be empty. Nothing is disturbed by that closing up, because
+turn order is each Unit's own readiness and not a count of Slots.
 
 > *Instead of Battleground's ambiguity about positioning, this app will anchor the party
 > on the left-most unit and occasionally compact toward them. Compaction is persistently
 > applied in the prep phase, then applied scarcely in the action phase* —
-> [transcript 0003](../transcripts/0003-action-phase-corrections.md).
+> [transcript 0003](../transcripts/0003-action-phase-corrections.md). Made continuous, and
+> made a property of the data rather than a scheduled operation, in
+> [0004](../transcripts/0004-the-beat-counter.md): *instead of focusing on absolute values
+> (SLOT-3 = EMPTY) let's place things relative to each other (the third unit died)*.
 
 #### 8. Every play-piece is a Card — SETTLED
 

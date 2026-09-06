@@ -31,15 +31,19 @@ Seed. No input.
 _Avoid_: combat, battle, fight
 
 **Beat**: One time-step of the Action Phase, belonging to the Board rather than to either
-Party. Beat *n* resolves Slot *n*, where whoever stands there acts — on both sides
-*simultaneously*, which is Battlegrounds' alternating turns merged into one. Beat 0 is
-the one exception: it closes ranks and nobody acts.
-_Avoid_: tick, turn, step, exchange
+Party. In each Beat the left-most **Ready** Unit of each Party acts — on both sides
+*simultaneously*, which is Battlegrounds' alternating turns merged into one. Beats count
+from 1 and run one way for the whole Action Phase; nothing resets them, and there is no
+unit of time above them. A Beat is also the span worth comparing across: the Board before
+it and the Board after it differ by everything it did.
+_Avoid_: tick, turn, step, exchange, pass
 
-**Pass** *(provisional)*: One full turn of the clock — Beat 0, then Beats 1 through 8.
-Ethan's phrase was "a round of beats"; **Round** was already taken. One Pass covers the
-whole Board, not one Party.
-_Avoid_: sweep, cycle, lap
+**Ready**: Of a Unit, still owing the clock a turn. Acting spends it. When neither Party
+has a Ready Unit left, every Unit becomes Ready again — the moment *before the first Unit
+acts*, and the only boundary the clock has (see
+[ADR 0010](docs/adr/0010-the-clock-is-a-beat-counter.md)). So everything standing when the
+Board came Ready acts exactly once before any of it acts again.
+_Avoid_: active, awake, untapped, available
 
 ## Units and Parties
 
@@ -54,19 +58,15 @@ _Avoid_: card, template, blueprint, prototype
 **Card**: A Unit's visual form — a 1:1.6 rectangle, presentation only. No separate token
 class, unlike Battlegrounds.
 
-**Party**: The Units a Player brings to the Action Phase, in their Slots. Ordering is
-the central decision.
+**Party**: The Units a Player brings to the Action Phase, in their Slots — an unbroken run
+anchored on its left-most Unit, at most 8 long. Ordering is the central decision. A death
+closes it up at once, so it never holds a gap.
 _Avoid_: board, warband, army, lineup, team, roster
 
-**Slot**: One of **8** ordered positions a Party occupies, numbered **1 to 8** from the
-left. Slot *n* acts in Beat *n*. May be empty.
+**Slot**: Where a Unit stands in its Party, counted **1 to 8** from the left. A Party of
+three occupies Slots 1, 2 and 3. Not an address a Unit is assigned to and not something
+that can be empty: a Party of three has three Slots.
 _Avoid_: position, index, tile
-
-**Closing ranks**: A Party re-anchoring on its left-most Unit, closing the gaps its dead
-left. Continuous during a Prep Phase; during an Action Phase only at Beat 0, so Slots
-hold still while a Pass runs — see
-[ADR 0009](docs/adr/0009-the-party-is-left-anchored.md).
-_Avoid_: shuffling, sliding, re-packing
 
 **Board**: Both Parties, as they stand during the Action Phase. Targeting is random
 (see [ADR 0008](docs/adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md)),
