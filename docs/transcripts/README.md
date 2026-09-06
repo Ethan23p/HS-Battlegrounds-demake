@@ -50,6 +50,32 @@ session, before a long gap). See the script's module docstring for the full JSON
 notes and known limitations if exports start looking wrong — Claude Code's on-disk
 transcript format is undocumented and can change between versions.
 
+## Known gap: answers to multiple-choice questions
+
+Until 2026-09-06 the exporter dropped answers to multiple-choice questions
+(`AskUserQuestion`). They arrive as *tool results* rather than user messages —
+the harness asks on Claude's behalf — so the filter treated them as plumbing,
+even though the words are Ethan's and are frequently where a decision was
+actually made. The script now recovers them (`answers_recovered` in the front
+matter counts them).
+
+**`0001` and `0002` predate the fix and are known to be missing at least one.**
+In `0002`, "And the technical decision you've been waiting on..." is followed
+immediately by "Recorded." — the effect-model answer behind
+[ADR 0007](../adr/0007-abilities-are-data-with-a-modifier-stage.md) fell in that
+gap. Re-exporting fixes it, but that session's raw JSONL lives in the container
+it ran in, so it has to be run from there:
+
+```bash
+python3 scripts/export_transcript.py \
+  --session 7e14bc36-1a5c-562e-80d1-d6857cb7d317 \
+  --out docs/transcripts/0002-vocabulary-and-action-phase.md
+```
+
+Regenerating an export *in place* like that is the one exception to the caveat
+below: it covers the same span more faithfully, rather than capturing a later
+one.
+
 ## Caveat: these are point-in-time snapshots
 
 An export captures a session exactly as it stood when the script ran. If the session was

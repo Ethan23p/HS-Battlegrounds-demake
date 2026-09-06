@@ -40,8 +40,14 @@ Each line is a standalone JSON object ("event"). The event's top-level
                          (either a string, or a list of sub-blocks such
                          as {"type": "text", ...} or
                          {"type": "tool_reference", ...}), and
-                         "is_error" (bool). These are NOT human
-                         conversation -- they are tool plumbing.
+                         "is_error" (bool). These are tool plumbing,
+                         with ONE exception: the result of a
+                         multiple-choice question (AskUserQuestion)
+                         wraps the human's own answer, in the form
+                         'The user answered: "<question>"="<answer>"'.
+                         Those words were typed by a person and are
+                         recovered as ordinary human turns -- see
+                         extract_answers().
                Two harness signals mark a "user" line as NOT human-typed
                conversation:
                  - isMeta == true: injected context, not something the
@@ -125,7 +131,8 @@ instance, not a full replay. By default this script keeps only:
   - Claude's visible reply text
 
 ...and drops thinking blocks, tool calls, tool results, and all harness/
-bookkeeping noise. Pass --include-tools to add back compact, one-line
+bookkeeping noise -- except answers to multiple-choice questions, which
+are human words wearing a tool result's clothes and are always kept. Pass --include-tools to add back compact, one-line
 summaries of tool calls (tool name + short description/first argument),
 never full payloads.
 
@@ -166,6 +173,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -211,6 +219,14 @@ META_SUBSTRING_SEARCH_CHARS = 400
 # still worth a short note in the output rather than silent deletion.
 INTERRUPT_MARKER = "[Request interrupted by user]"
 
+# A multiple-choice answer arrives as a tool result wrapping the human's own
+# words. These markers pick it out and strip the harness framing around it.
+ANSWER_PREFIX = "The user answered:"
+ANSWER_TRAILERS = (
+    ". Read the answers carefully",
+    "Read the answers carefully",
+)
+
 # Content-block "type" values we understand within a "user" line's content
 # list. Anything else is counted and skipped rather than crashing the export.
 # (The assistant-side equivalent -- text/thinking/tool_use/redacted_thinking
@@ -235,6 +251,7 @@ class Stats:
         self.assistant_turns = 0
         self.tool_calls_seen = 0
         self.tool_results_seen = 0
+        self.answers_recovered = 0
         self.thinking_blocks_seen = 0
         self.unknown_block_types: dict[str, int] = {}
         self.unknown_line_shapes = 0
@@ -334,6 +351,46 @@ def summarize_tool_use(block: dict) -> str:
     if desc is None:
         return f"`{name}`"
     return f"`{name}`: {truncate(desc)}"
+
+
+def tool_result_text(block: dict) -> str:
+    """The plain text of a tool result, whatever shape it arrived in."""
+    content = block.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for sub in content:
+            if isinstance(sub, dict) and sub.get("type") == "text":
+                parts.append(sub.get("text", ""))
+        return " ".join(parts)
+    return str(content)
+
+
+def extract_answers(block: dict) -> list[tuple[str, str]]:
+    """Human answers to a multiple-choice question, as (question, answer).
+
+    These arrive as a *tool result* rather than a user message, because the
+    harness asks the question on Claude's behalf -- but the words are the
+    human's, and they are frequently where a decision actually gets made. An
+    archive that drops them is not the record it claims to be, so they are
+    recovered here and rendered as ordinary human turns.
+
+    Returns an empty list for every other kind of tool result.
+    """
+    text = tool_result_text(block)
+    if not text.lstrip().startswith(ANSWER_PREFIX):
+        return []
+    body = text.lstrip()[len(ANSWER_PREFIX) :]
+    for tail in ANSWER_TRAILERS:
+        cut = body.rfind(tail)
+        if cut != -1:
+            body = body[:cut]
+    pairs = re.findall(r'"(.*?)"="(.*?)"(?=,\s*"|\s*\.?\s*$)', body, flags=re.DOTALL)
+    if pairs:
+        return [(q.strip(), a.strip()) for q, a in pairs]
+    # Shape drifted; keep the words rather than losing them.
+    return [("", body.strip().strip('".'))]
 
 
 def summarize_tool_result(block: dict) -> str:
@@ -456,7 +513,16 @@ def render_transcript(events: list[dict], stats: Stats, include_tools: bool) -> 
                             human_text_parts.append(text)
                     elif btype == "tool_result":
                         stats.tool_results_seen += 1
-                        if include_tools:
+                        answers = extract_answers(block)
+                        for question, answer in answers:
+                            stats.answers_recovered += 1
+                            if question:
+                                human_text_parts.append(
+                                    f"*(answering: {question})*\n\n{answer}"
+                                )
+                            else:
+                                human_text_parts.append(answer)
+                        if include_tools and not answers:
                             tool_result_lines.append(summarize_tool_result(block))
                     elif btype in KNOWN_USER_BLOCK_TYPES:
                         pass
@@ -530,6 +596,7 @@ def build_front_matter(session_path: Path, session_id: str, stats: Stats, includ
         f"  user_lines_filtered_as_noise: {stats.user_turns_meta_skipped}",
         f"  tool_calls_omitted: {stats.tool_calls_seen}",
         f"  tool_results_omitted: {stats.tool_results_seen}",
+        f"  answers_recovered: {stats.answers_recovered}",
         f"  thinking_blocks_omitted: {stats.thinking_blocks_seen}",
         f"  parse_errors: {stats.lines_parse_errors}",
         f"  unknown_block_shapes: {sum(stats.unknown_block_types.values())}",
