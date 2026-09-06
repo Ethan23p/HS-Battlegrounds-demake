@@ -1,17 +1,17 @@
 ---
 session_id: 1bc92e3b-dd3b-5cb8-87cb-cce49ce993d3
-export_date: 2026-09-06T05:03:13Z
+export_date: 2026-09-06T05:26:01Z
 source_path: /root/.claude/projects/-home-user-HS-Battlegrounds-demake/1bc92e3b-dd3b-5cb8-87cb-cce49ce993d3.jsonl
 include_tools: false
 message_counts:
-  lines_total: 991
-  user_turns: 14
-  assistant_turns: 321
-  user_lines_filtered_as_noise: 185
-  tool_calls_omitted: 182
-  tool_results_omitted: 181
+  lines_total: 1079
+  user_turns: 16
+  assistant_turns: 351
+  user_lines_filtered_as_noise: 198
+  tool_calls_omitted: 195
+  tool_results_omitted: 194
   answers_recovered: 1
-  thinking_blocks_omitted: 69
+  thinking_blocks_omitted: 79
   parse_errors: 0
   unknown_block_shapes: 0
 ---
@@ -379,3 +379,112 @@ Two fidelity slips of my own — I altered his punctuation and joined two separa
 Two edits didn't land. Fixing precisely:
 
 All 18 quoted fragments verify verbatim. Let me check nothing else references delta numbers, then finalize:
+
+Pushed. Answering both parts:
+
+## The other session's transcript
+
+**I couldn't re-run it.** Only this session's raw log exists in this container; the sibling session (`7e14bc36…`, which produced *both* 0001 and 0002) ran in its own container. It isn't running either, so there was no agent to message.
+
+**But it did miss something, and I can show you where.** While checking, I found the exporter silently drops answers to multiple-choice questions — they arrive as tool results rather than user messages, so the filter treated them as plumbing. Your BG-vs-demake table, where "attacker dies last" was decided, was lost that way from this session's first export. I fixed the script (the answers now come back as ordinary human turns, counted as `answers_recovered` in the front matter) and re-exported.
+
+The same bug bit 0002. At line 696:
+
+```
+And the technical decision you've been waiting on, now that Q8 has settled the rate question:
+
+Recorded. Let me write that decision down properly ...
+```
+
+"Recorded." with nothing between — that gap is your answer to the effect-model modal, which is the provenance for **ADR 0007**. To recover it, that session has to be resumed and this run from there (the README now carries this):
+
+```sh
+python3 scripts/export_transcript.py --session 7e14bc36-1a5c-562e-80d1-d6857cb7d317 \
+  --out docs/transcripts/0002-vocabulary-and-action-phase.md
+```
+
+## The delta reassessment
+
+You were right to suspect drift — **three deltas were in play but not on the list**:
+
+- **Eight Slots to a Party.** Battlegrounds seats seven. Lived only in CLAUDE.md's "Decided" line.
+- **Every play-piece is a Card.** You explicitly framed it as "a nice improvement over Battlegrounds." Lived as prose under "Presentation."
+- **The attacker dies last.** Battlegrounds has no counterpart, since its resolution is sequential — the question can't arise there. Lived only inside ADR 0008.
+
+The register is now nine deltas, grouped (shape of a Run / how a fight resolves / the Board / Resources) and renumbered, each quoting the message you introduced it in, with later shaping messages cited too. I verified all 18 quoted fragments appear verbatim in the archive — which caught two slips of my own, where I'd changed your punctuation and joined two lines that weren't contiguous.
+
+I also added a **"What is not a delta"** section, since that's where the misalignment actually came from: the original Unit set (content), no heroes (scope), and targeting/Taunt/Windfury/never-attacking-a-Player (Battlegrounds' own rules, restored after the drift we just fixed).
+
+Two things for you:
+
+1. **The renumbering is mine.** Old delta 2 (simultaneity) is now 4, old 5 (async) is now 2, and so on. If you'd rather keep the original numbering and just append, say so — it's a quick rework.
+2. **Delta 4 merges simultaneity with the Beat clock.** They came from three separate messages of yours, but they're now one rule a player has to learn ("Beat *n* resolves Slot *n*, both sides at once"), so splitting them produced two entries neither of which stood alone. All three quotes are preserved under it.
+
+## User
+
+I have the other session open - could you check the messaging thing again?
+
+## Claude
+
+Still nothing on this machine — peer messaging only reaches sessions in *this* container, and yours is running in its own. Let me check whether the remote-session tools can reach it instead.
+
+`SendMessage` is available now, and I can see the other session in the account listing — `session_01Py1MKV3DVVaRJq3YAEC1vW`, "Hearthstone Battlegrounds Rust remake", on `claude/hearthstone-battlegrounds-rust-3rc6jt`, updated three minutes ago. But `ListAgents` still shows no reachable peers. Let me probe whether it's addressable at all:
+
+Checked properly this time — and the answer is no, but now I know exactly why.
+
+`ListAgents` only sees sessions in **this container**. Yours runs in its own cloud container (`env_011mGLJUgBUUNm434goBifKX`, same environment but a separate machine), and the account-level listing confirms it's `connection_status: disconnected`. Addressing it directly fails:
+
+```
+No agent named 'session_01Py1MKV3DVVaRJq3YAEC1vW' is reachable.
+```
+
+Peer messaging is same-machine only here, so there's no route from me to it regardless of it being open. A `spawn_task` wouldn't help either — a new session gets a fresh container, and the JSONL we need only exists in the one that wrote it.
+
+So it needs to come from your side. Since that session is open, this is paste-ready for it:
+
+> The transcript exporter has been dropping answers to multiple-choice questions (`AskUserQuestion`) — they arrive as tool results rather than user messages, so the noise filter treated them as plumbing even though the words are Ethan's. This means `docs/transcripts/0002-vocabulary-and-action-phase.md`, which you exported, is missing at least one real message: search it for "And the technical decision you've been waiting on" and you'll find it followed immediately by "Recorded." — Ethan's answer to the effect-model modal, the decision behind ADR 0007, fell in that gap.
+>
+> The fix is on branch `claude/reduce-docs-size-1ggc5c` (commit 764db08). Please:
+>
+> 1. `git fetch origin claude/reduce-docs-size-1ggc5c` and take `scripts/export_transcript.py` from it (`git checkout origin/claude/reduce-docs-size-1ggc5c -- scripts/export_transcript.py`), or merge the branch if that's cleaner.
+> 2. Re-export your own session over the existing file — same span, more faithful, so overwrite rather than adding a new number:
+>    ```sh
+>    python3 scripts/export_transcript.py \
+>      --session 7e14bc36-1a5c-562e-80d1-d6857cb7d317 \
+>      --out docs/transcripts/0002-vocabulary-and-action-phase.md
+>    ```
+> 3. Check the front matter now reports `answers_recovered:` with a non-zero count, and that the "Recorded." gap has Ethan's answer above it. Leave `0001` alone — it's a deliberate earlier snapshot of the same session, and `0002` covers the full span anyway.
+> 4. Commit it. If the recovered answer changes what ADR 0007 should say, flag that rather than editing the ADR silently.
+
+Worth knowing: that session shows `status_bucket: FAILED` with a tool-use diagnostic on its last turn, which is probably also why it's disconnected. If it won't take the instruction, the same commands work from any session that can reach that container.
+
+## User
+
+Okay, that was a bit silly but we got there:
+> Pushed as `ed71a3d`. Done, but the sibling's fix needed more than a re-run — it had two more bugs, one of which I only found by using it and one of which I introduced myself mid-fix. Summary:
+What the fix actually needed, beyond taking the file as-is:
+
+1. Wrong prefix. Their fix looked for `"The user answered:"`; this session's harness says `"Your questions have been answered:"`. Generalized to a growable list of signal phrases instead of one hardcoded pair.
+2. Regex breaks on embedded quotes. The recovered question itself contains a quoted term (`chiefly "global rule modifiers" like Brann/Baron`). A `"([^"]*)"="([^"]*)"` pattern stops at that inner quote and truncates the question to a fragment — which is exactly what my first patch did too, before I caught it by actually reading the output rather than trusting a nonzero count. Replaced with a small parser (`split_qa_pairs`) that finds the boundary using the literal three characters `"="`, which can't appear inside ordinary prose the way a lone `"` can.
+3. The one I found last and like least: gating on "phrase found anywhere" is unsafe. While debugging this, my own Bash output — grepping the script's source, catting earlier broken exports — contained the phrase buried in the middle of unrelated text, and each one was misparsed as a fabricated answer. Eight of them, at one point. Tightened to require the phrase at the very start of the tool result, which is how the harness's fixed wrapper actually renders.
+
+Verified end to end: `answers_recovered: 1` (the one real case), the recovered text matches the source exactly including its embedded quote, zero false positives, zero other files touched.
+On ADR 0007: the recovered answer — "Data + pipeline hook (Recommended)" — confirms it rather than changing it. That's the option the ADR already describes. No edit needed.
+
+I also made a "main" branch, so at the next opportunity you can create a pull request for that.
+
+## Claude
+
+Good outcome, and the accounting is worth getting right since provenance accuracy is the whole theme here. Let me look at what actually landed and check the three claims against my code.
+
+Verified against the actual code. The record, briefly, because this project cares about provenance:
+
+- **Bug 1 (wrong prefix) — mine, fair catch.** I hardcoded one phrase from the only sample I could see: my own container. Generalizing to an allowlist is correct.
+- **Bug 2 (embedded quotes) — not from my patch.** Mine used non-greedy `.*?` anchored on the literal `"="`, which returns the full question on their exact example. The truncating `"([^"]*)"="([^"]*)"` was their own first attempt. Their structural parser is still the better design, so the fix stands — just not the attribution.
+- **Bug 3 (matching "anywhere") — also not inherited.** Mine gated on `text.lstrip().startswith(...)`, already anchored. The substring behaviour and its eight false positives came in during their generalization.
+
+One of three. Not worth rewriting merged history over, but worth you knowing, since `ed71a3d`'s message records "two bugs in it" against my commit.
+
+Now the PR. Let me integrate main first — there'll be a conflict on the exporter, and theirs wins:
+
+Only the exporter conflicts, and theirs is a strict superset. Taking main's version wholesale:
