@@ -45,10 +45,10 @@ it works however Battlegrounds works.
 
 ## The mechanism
 
-A **Beat** is a time-step of the Board, and Beat *n* resolves Slot *n* — on both sides at
-once. That is simultaneity's entire meaning, and the only thing this ADR asks the engine
-to do differently from Battlegrounds. [ADR 0009](0009-the-party-is-left-anchored.md)
-specifies the clock those Beats run on, and when a Party closes ranks around its dead.
+A **Beat** is a time-step of the Board, in which the left-most Unit of each Party still
+owing a turn acts. That is simultaneity's entire meaning, and the only thing this ADR
+asks the engine to do differently from Battlegrounds.
+[ADR 0010](0010-the-clock-is-a-beat-counter.md) specifies the clock those Beats run on.
 
 A Beat proceeds attack by attack (Windfury's second attack is a second instance). Within
 an instance, both sides' current attacker strike at once: **each draws its own target**
@@ -73,10 +73,10 @@ whole reason this ADR exists is unflagged invention drifting into settled rules.
   Battlegrounds' behaviour and isn't — Hearthstone lets a minion go face, Battlegrounds
   never does. Such an attack now simply doesn't land, and `Resolution` carries no
   damage-to-Player totals at all.
-- **`turn_count % party.len()` cycling: replaced**, by the Pass and its compaction rule in
-  [ADR 0009](0009-the-party-is-left-anchored.md). The modulo scheme quietly assumed the
-  Party re-packs after every Beat, which is exactly the positional ambiguity 0009 sets out
-  to remove.
+- **`turn_count % party.len()` cycling: replaced**, first by ADR 0009's Pass and then by
+  the Beat counter in [ADR 0010](0010-the-clock-is-a-beat-counter.md). The modulo scheme
+  quietly assumed the Party re-packs after every Beat, which is exactly the positional
+  ambiguity those two set out to remove.
 
 ## Superseded
 

@@ -1,8 +1,15 @@
 ---
-status: accepted
+status: accepted, superseded in mechanism by ADR-0010
 ---
 
 # The Party is left-anchored, and a Beat is a time-step
+
+> **Superseded in mechanism by [ADR 0010](0010-the-clock-is-a-beat-counter.md).** The
+> left-anchoring below stands. The machinery under it — the Pass, Beat 0, closing ranks
+> as an operation, and the interior Slot left empty for the rest of a Pass — does not:
+> Beats now count one way and never reset, a Party never holds a gap, and the turn order
+> is each Unit's own readiness rather than a cursor over Slot numbers. Read 0010 for what
+> the engine does; this one for why positions had to stop being ambiguous at all.
 
 Neither Hearthstone nor Battlegrounds has a clean answer to where Units sit. Hearthstone
 keeps a board *centred*, so playing or losing a minion shifts everything; Battlegrounds is
