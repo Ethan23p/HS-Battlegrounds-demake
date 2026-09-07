@@ -1,6 +1,6 @@
 # Battlegrounds Demake
 
-A minimalist demake of Hearthstone: Battlegrounds — a vertical slice with six deliberate
+A minimalist demake of Hearthstone: Battlegrounds — a vertical slice with nine deliberate
 rule changes (see [vision.md](docs/design/vision.md)).
 
 This file is a **glossary and nothing else**. A term lands here once settled; a word we

@@ -1,10 +1,10 @@
 # HS-Battlegrounds-demake
 
 A deterministic auto-battler engine in Rust: a vertical slice of Hearthstone: Battlegrounds
-with six deliberate rule changes.
+with nine deliberate rule changes.
 
 **Fresh instance? Read, in order:** [`CONTEXT.md`](CONTEXT.md) (glossary),
-[`docs/design/vision.md`](docs/design/vision.md) (the six deltas),
+[`docs/design/vision.md`](docs/design/vision.md) (the nine deltas),
 [`docs/design/roadmap.md`](docs/design/roadmap.md) (what "done" means), then skim
 [`docs/adr/`](docs/adr/). ~15 minutes, the whole picture.
 
@@ -61,10 +61,10 @@ Shield, Poisonous, Reborn, and Taunt all live. Clippy clean. `cargo run -p bg-si
 --example watch` prints a narrated fight.
 
 Targeting is **random, respecting Taunt**, and every attack draws its own target —
-exactly Battlegrounds' rule. Simultaneity (both sides' current attacker acting in the
-same Beat, instead of alternating) is the only delta in how a fight resolves; see
-[ADR 0008](docs/adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md). Nothing
-ever attacks a Player: that is Hearthstone, not Battlegrounds. `rng` draws from
+exactly Battlegrounds' rule. Two things about a fight are ours: both sides act in the
+same Beat instead of alternating, and the attacker dies last when a trade is mutual (see
+[ADR 0008](docs/adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md)).
+Nothing ever attacks a Player: that is Hearthstone, not Battlegrounds. `rng` draws from
 `Domain::Combat` starting in v0.1, not waiting for Effects.
 
 **Decided:** one Player against a stream of opposing Parties; the Action Phase resolves
@@ -75,7 +75,7 @@ asynchronous Rounds, unbounded Prep; three loosely-coupled, bounded resources (E
 Power, Units); an original minimal Unit set; no heroes yet; headless-first; Abilities as
 data through a pipeline with a modifier stage. See [`docs/adr/`](docs/adr/).
 
-**The default rule:** undeltered, it works however Battlegrounds works — see the six
+**The default rule:** undeltered, it works however Battlegrounds works — see the nine
 deltas in [vision.md](docs/design/vision.md). Numbers start at Battlegrounds' values,
 anchored on 1.
 
