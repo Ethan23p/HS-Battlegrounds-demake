@@ -50,7 +50,14 @@ session, before a long gap). See the script's module docstring for the full JSON
 notes and known limitations if exports start looking wrong — Claude Code's on-disk
 transcript format is undocumented and can change between versions.
 
-## Known gap: answers to multiple-choice questions
+## Known gaps: Ethan's words arriving as plumbing
+
+Twice now the exporter has silently dropped something Ethan actually typed, because
+it reached the log through a channel that mostly carries harness noise. Both are
+fixed; both are worth knowing about, because the failure is quiet — an export that
+is missing a decision looks exactly like an export that is complete.
+
+### Answers to multiple-choice questions
 
 Until 2026-09-06 the exporter dropped answers to multiple-choice questions
 (`AskUserQuestion`). They arrive as *tool results* rather than user messages —
@@ -75,6 +82,24 @@ python3 scripts/export_transcript.py \
 Regenerating an export *in place* like that is the one exception to the caveat
 below: it covers the same span more faithfully, rather than capturing a later
 one.
+
+### Messages typed while Claude is working
+
+Fixed 2026-09-06, and found the same way — a quote that would not verify against
+the archive. A message sent while Claude is mid-turn is *absorbed* into the running
+turn rather than queued behind it, so it never becomes a `user` line at all. It
+survives only in the queue bookkeeping (`queue-operation`), which the exporter
+skipped wholesale as noise. The design change behind
+[ADR 0010](../adr/0010-the-clock-is-a-beat-counter.md) arrived this way and would
+have left no trace.
+
+The script now recovers it from the `remove` record carrying
+`reason: "absorbed_mid_turn"` (`queued_messages_recovered` in the front matter).
+That marker is exact rather than heuristic: a queued message that was delivered
+normally ends in `dequeue` and is already exported as its own turn, so there is
+nothing to double-count. **`0001` and `0002` predate this fix too**, and their raw
+logs are in other containers — if a quote from either fails to verify, this is the
+first thing to suspect.
 
 ## Caveat: these are point-in-time snapshots
 
