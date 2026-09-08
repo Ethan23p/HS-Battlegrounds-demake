@@ -194,6 +194,7 @@ button.primary:hover { background: #17544c; }
 /* --- The board: one 8-column unit that only ever changes scale ---------- */
 
 .board {
+  position: relative;
   container-type: inline-size;
   padding: clamp(0.5rem, 1.4cqw, 1rem);
   display: flex;
@@ -201,11 +202,22 @@ button.primary:hover { background: #17544c; }
   gap: 0.9cqw;
 }
 
-.row {
+.row, .slots, .cards {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   gap: 0.9cqw;
 }
+
+/* A rank is two layers: the eight Slots, which never move, and the Cards
+   standing in them, which do. Keeping Cards as persistent elements is what lets
+   a strike, a death and a closing of ranks animate instead of redraw. */
+.rank { position: relative; }
+.rank .cards {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.rank .cards > * { pointer-events: auto; }
 
 /* The ruler is the transport and the Slot header at once: step n is Slot n. */
 .ruler .tick {
@@ -225,18 +237,41 @@ button.primary:hover { background: #17544c; }
 }
 
 /* The playhead: the live Beat's column, lit through both Parties. */
-.cell {
+.slot {
   position: relative;
-  border-radius: 2px;
+  aspect-ratio: 1 / 1.6;
+  border: 1px dashed var(--line-soft);
+  border-radius: max(2px, 0.5cqw);
+  background: repeating-linear-gradient(
+    -45deg, transparent 0 3px, var(--line-soft) 3px 4px);
+  opacity: 0.35;
+  transition: background 140ms ease, opacity 140ms ease;
 }
-.cell.live::before {
-  content: "";
+.slot.live {
+  opacity: 1;
+  background: color-mix(in srgb, var(--beat) 10%, transparent);
+  border-color: color-mix(in srgb, var(--beat) 45%, transparent);
+}
+
+/* The tracer: the line from an attacker to the target it drew. Targeting is
+   random, so without this the cause and the effect sit in unrelated columns
+   with nothing joining them. */
+.tracer {
   position: absolute;
-  inset: -0.45cqw -0.3cqw;
-  background: color-mix(in srgb, var(--beat) 9%, transparent);
-  border-radius: 3px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
   pointer-events: none;
+  z-index: 5;
 }
+.tracer line {
+  stroke: var(--beat);
+  stroke-width: 2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--beat) 70%, transparent));
+}
+.tracer circle { fill: var(--beat); }
 
 /* --- The Card: 1:1.6, and the same design at every scale ---------------- */
 
@@ -244,27 +279,27 @@ button.primary:hover { background: #17544c; }
   position: relative;
   aspect-ratio: 1 / 1.6;
   width: 100%;
+  cursor: pointer;
+  transition: opacity 260ms ease;
+}
+
+/* The visible card. Separated from its grid cell so that closing ranks (which
+   moves the cell) and striking (which moves the card) never fight each other. */
+.card .body {
+  position: absolute;
+  inset: 0;
   border: 1px solid var(--line);
   border-radius: max(2px, 0.5cqw);
   background: var(--raised);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  cursor: pointer;
-  transition: transform 140ms ease, box-shadow 140ms ease, opacity 200ms ease;
+  transition: box-shadow 160ms ease, border-color 160ms ease;
 }
+.card .stats span { transition: color 160ms ease; }
 
-.card.empty {
-  background: repeating-linear-gradient(
-    -45deg, transparent 0 3px, var(--line-soft) 3px 4px);
-  border-style: dashed;
-  border-color: var(--line-soft);
-  cursor: default;
-  opacity: 0.5;
-}
-
-.row.player  .card:not(.empty) { border-top: max(2px, 0.35cqw) solid var(--player); }
-.row.opposing .card:not(.empty) { border-bottom: max(2px, 0.35cqw) solid var(--opposing); }
+.rank.player .card .body { border-top: max(2px, 0.35cqw) solid var(--player); }
+.rank.opposing .card .body { border-bottom: max(2px, 0.35cqw) solid var(--opposing); }
 
 .card .badges {
   display: flex;
@@ -322,27 +357,32 @@ button.primary:hover { background: #17544c; }
   font-variant-numeric: tabular-nums;
 }
 .card .atk { color: var(--player); }
-.row.opposing .card .atk { color: #f0b96b; }
+.rank.opposing .card .atk { color: #f0b96b; }
 .card .hp { color: #f28d96; }
 .card .hp.hurt { color: var(--opposing); }
 
 /* States the fight puts a card in. */
-.card.shielded {
+.card.shielded .body {
   box-shadow: inset 0 0 0 max(1px, 0.3cqw) var(--shield);
 }
-.card.acting {
-  transform: translateY(calc(var(--lunge, 0) * 1.2cqw)) scale(1.04);
-  box-shadow: 0 0 0 max(1px, 0.25cqw) var(--beat), 0 0.6cqw 1.4cqw rgba(0,0,0,0.5);
+.card.acting .body {
+  box-shadow: 0 0 0 max(1px, 0.25cqw) var(--beat), 0 0.6cqw 1.4cqw rgba(0, 0, 0, 0.5);
   z-index: 2;
 }
-.card.struck { animation: jolt 260ms ease; }
-.card.dying { opacity: 0; transform: scale(0.86); }
+.card.acting .body { animation: lunge 420ms ease; z-index: 2; }
+.card.struck .body { animation: jolt 300ms ease; }
+.card.leaving { opacity: 0; }
 .card.doomed .hp { color: var(--poison); }
 
 @keyframes jolt {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-2.5%); }
-  60% { transform: translateX(2%); }
+  0%, 100% { transform: none; }
+  30% { transform: translateX(-6%) rotate(-1.5deg); }
+  65% { transform: translateX(4%) rotate(1deg); }
+}
+
+@keyframes lunge {
+  0%, 100% { transform: none; }
+  35% { transform: translateY(calc(var(--lunge, 0) * 9%)) scale(1.05); }
 }
 
 /* Floating damage, anchored to the card it landed on. */
@@ -559,13 +599,18 @@ footer b { color: var(--ink-dim); font-weight: 500; }
   <div class="stage">
     <div class="panel">
       <div class="board" id="board">
+        <svg class="tracer" id="tracer"></svg>
         <div class="row ruler" id="ruler"></div>
-        <div class="row opposing" id="opposing"></div>
+        <div class="rank opposing" id="opposing">
+          <div class="slots"></div><div class="cards"></div>
+        </div>
         <div class="axis">
           <span class="clock" id="clock">pass — · beat —</span>
           <span class="verdict" id="verdict"></span>
         </div>
-        <div class="row player" id="player"></div>
+        <div class="rank player" id="player">
+          <div class="slots"></div><div class="cards"></div>
+        </div>
       </div>
       <div class="transport">
         <div class="keys">
@@ -722,8 +767,13 @@ const other = (side) => (side === "player" ? "opposing" : "player");
 const lower = (side) => (side === "Player" ? "player" : "opposing");
 
 function startingBoard(initial) {
-  const read = (party) => party.slots.map((s) => (s ? { ...s, keywords: [...s.keywords] } : null));
-  return { player: read(initial.player), opposing: read(initial.opposing) };
+  // A Unit gets an identity here and keeps it for the whole fight, through
+  // damage, through closing ranks, through Reborn. The renderer follows that
+  // identity rather than the Slot, which is what lets a Card move instead of
+  // being redrawn somewhere else.
+  const read = (party, tag) => party.slots.map((s, i) =>
+    (s ? { ...s, keywords: [...s.keywords], iid: `${tag}${i}` } : null));
+  return { player: read(initial.player, "p"), opposing: read(initial.opposing, "o") };
 }
 
 /** Every frame of the fight: a Board, plus what to light up on it. */
@@ -731,7 +781,7 @@ function buildFrames(reply) {
   let board = startingBoard(reply.initial);
   const frames = [{
     board: cloneBoard(board), text: "the parties take the field",
-    pass: 0, beat: 0, acting: [], hit: null, pop: null, verdict: null,
+    pass: 0, beat: 0, acting: [], hit: null, pop: null, strike: null, verdict: null,
   }];
 
   const log = reply.log;
@@ -743,7 +793,7 @@ function buildFrames(reply) {
   log.forEach((e, i) => {
     const frame = {
       text: reply.narration[i], pass, beat,
-      acting: [], hit: null, pop: null, verdict: null,
+      acting: [], hit: null, pop: null, strike: null, verdict: null,
     };
 
     switch (e.kind) {
@@ -765,6 +815,7 @@ function buildFrames(reply) {
         const aSlot = e.attacker_slot - 1, tSlot = e.target_slot - 1;
         frame.acting = [[by, aSlot]];
         frame.hit = [at, tSlot];
+        frame.strike = [[by, aSlot], [at, tSlot]];
 
         // The shield is reported on the event *after* the strike, so the frame
         // has to look one ahead to know whether the damage actually landed.
@@ -840,7 +891,10 @@ const dom = {
   clock: el("clock"), verdict: el("verdict"), log: el("log"),
   scrub: el("scrub"), counter: el("counter"), passes: el("passes"),
   play: el("play"), speed: el("speed"), inspect: el("inspect"), sheet: el("sheet"),
+  board: el("board"), tracer: el("tracer"),
 };
+
+const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 const state = {
   frames: [], at: 0, playing: false, rate: 1, timer: null, reply: null,
@@ -856,86 +910,154 @@ for (let i = 1; i <= SLOTS; i++) {
   dom.ruler.append(tick);
 }
 
-function cardMarkup(unit, side) {
-  const cell = document.createElement("div");
-  cell.className = "cell";
-  const card = document.createElement("div");
+// One persistent element per Unit, per side, keyed by the identity assigned in
+// buildFrames. Elements are updated in place and moved between Slots; they are
+// never rebuilt, because a rebuilt element cannot animate.
+const cards = { player: new Map(), opposing: new Map() };
 
-  if (!unit) {
-    card.className = "card empty";
-    cell.append(card);
-    return { cell, card };
+for (const side of ["player", "opposing"]) {
+  const slots = dom[side].querySelector(".slots");
+  for (let i = 0; i < SLOTS; i++) {
+    const cell = document.createElement("div");
+    cell.className = "slot";
+    slots.append(cell);
   }
+}
 
+function createCard(unit, side) {
+  const card = document.createElement("div");
   card.className = "card";
-  if (unit.keywords.includes("DivineShield")) card.classList.add("shielded");
-  if (unit.doomed) card.classList.add("doomed");
-
+  const body = document.createElement("div");
+  body.className = "body";
   const badges = document.createElement("div");
   badges.className = "badges";
-  for (const k of unit.keywords) {
-    const b = document.createElement("span");
-    b.className = `badge ${BADGE[k] || ""}`;
-    b.textContent = BADGE[k] || "?";
-    b.title = k;
-    badges.append(b);
-  }
-
   const name = document.createElement("div");
   name.className = "name";
-  name.textContent = unit.name;
-
   const stats = document.createElement("div");
   stats.className = "stats";
   const atk = document.createElement("span");
   atk.className = "atk";
-  atk.textContent = unit.attack;
   const hp = document.createElement("span");
-  hp.className = "hp" + (unit.health < unit.max_health ? " hurt" : "");
-  hp.textContent = unit.health;
+  hp.className = "hp";
   stats.append(atk, hp);
+  body.append(badges, name, stats);
+  card.append(body);
+  card.dataset.side = side;
+  card.addEventListener("click", () => {
+    if (card._unit) inspect(card._unit, side);
+  });
+  return card;
+}
 
-  card.append(badges, name, stats);
-  card.addEventListener("click", () => inspect(unit, side));
-  cell.append(card);
-  return { cell, card };
+function updateCard(card, unit) {
+  card._unit = unit;
+  const [badges, name, stats] = card.firstChild.children;
+
+  const wanted = unit.keywords.join(",");
+  if (card.dataset.kw !== wanted) {
+    card.dataset.kw = wanted;
+    badges.replaceChildren(...unit.keywords.map((k) => {
+      const b = document.createElement("span");
+      b.className = `badge ${BADGE[k] || ""}`;
+      b.textContent = BADGE[k] || "?";
+      b.title = k;
+      return b;
+    }));
+  }
+  if (name.textContent !== unit.name) name.textContent = unit.name;
+
+  const [atk, hp] = stats.children;
+  atk.textContent = unit.attack;
+  hp.textContent = unit.health;
+  hp.className = "hp" + (unit.health < unit.max_health ? " hurt" : "");
+  card.classList.toggle("shielded", unit.keywords.includes("DivineShield"));
+  card.classList.toggle("doomed", !!unit.doomed);
+}
+
+/** Restart a CSS animation on an element that is being reused. */
+function replay(card, cls) {
+  card.classList.remove(cls);
+  void card.offsetWidth;
+  card.classList.add(cls);
 }
 
 function draw(index) {
   const frame = state.frames[index];
   if (!frame) return;
+  const acting = new Set(frame.acting.map(([s, i]) => `${s}:${i}`));
 
   for (const side of ["player", "opposing"]) {
-    const row = dom[side];
-    row.replaceChildren();
-    for (let slot = 0; slot < SLOTS; slot++) {
-      const { cell, card } = cardMarkup(frame.board[side][slot], side);
-      if (frame.beat > 0 && slot === frame.beat - 1) cell.classList.add("live");
+    const layer = dom[side].querySelector(".cards");
+    const live = cards[side];
+    const before = new Map();
+    for (const [iid, el] of live) before.set(iid, el.getBoundingClientRect());
 
-      if (frame.acting.some(([s, i]) => s === side && i === slot)) {
-        card.classList.add("acting");
+    const present = new Set();
+    frame.board[side].forEach((unit, slot) => {
+      if (!unit) return;
+      present.add(unit.iid);
+      let card = live.get(unit.iid);
+      if (!card) {
+        card = createCard(unit, side);
+        live.set(unit.iid, card);
+        layer.append(card);
+      }
+      clearTimeout(card._exit);
+      card.classList.remove("leaving");
+      card.style.gridColumn = String(slot + 1);
+      updateCard(card, unit);
+
+      const key = `${side}:${slot}`;
+      card.classList.toggle("acting", acting.has(key));
+      if (acting.has(key)) {
         card.style.setProperty("--lunge", side === "player" ? -1 : 1);
+        replay(card, "acting");
       }
       if (frame.hit && frame.hit[0] === side && frame.hit[1] === slot) {
-        card.classList.add("struck");
+        replay(card, "struck");
+      } else {
+        card.classList.remove("struck");
       }
-      if (frame.pop && frame.pop.at[0] === side && frame.pop.at[1] === slot) {
-        const pop = document.createElement("span");
-        pop.className = `pop ${frame.pop.kind}`;
-        pop.textContent = frame.pop.text;
-        cell.append(pop);
+    });
+
+    // A Unit that has left the Board fades rather than vanishing -- and comes
+    // straight back if the viewer scrubs backwards over its death.
+    for (const [iid, card] of live) {
+      if (present.has(iid)) continue;
+      card.classList.add("leaving");
+      clearTimeout(card._exit);
+      card._exit = setTimeout(() => { card.remove(); live.delete(iid); }, 300);
+    }
+
+    // FLIP: play the move the Slot change implies, so closing ranks is a slide.
+    if (!REDUCED.matches) {
+      for (const [iid, card] of live) {
+        const was = before.get(iid);
+        if (!was || !card.isConnected) continue;
+        const now = card.getBoundingClientRect();
+        const dx = was.left - now.left;
+        if (Math.abs(dx) < 1) continue;
+        card.animate(
+          [{ transform: `translateX(${dx}px)` }, { transform: "none" }],
+          { duration: 260, easing: "cubic-bezier(0.2, 0, 0, 1)" });
       }
-      row.append(cell);
     }
   }
 
+  drawPop(frame);
+  drawTracer(frame);
+
   for (let i = 0; i < SLOTS; i++) {
     dom.ruler.children[i].classList.toggle("live", frame.beat === i + 1);
+    for (const side of ["player", "opposing"]) {
+      dom[side].querySelector(".slots").children[i]
+        .classList.toggle("live", frame.beat === i + 1);
+    }
   }
 
   dom.clock.textContent = frame.pass
-    ? `pass ${frame.pass} · beat ${frame.beat}`
-    : "pass — · beat —";
+    ? `pass ${frame.pass} \u00b7 beat ${frame.beat}`
+    : "pass \u2014 \u00b7 beat \u2014";
 
   const verdict = frame.verdict || (index === state.frames.length - 1 ? state.reply.outcome : null);
   dom.verdict.textContent = verdict ? verdict.replace(/([a-z])([A-Z])/g, "$1 $2") : "";
@@ -944,13 +1066,65 @@ function draw(index) {
   dom.scrub.value = index;
   dom.counter.textContent = `${index} / ${state.frames.length - 1}`;
 
-  // The log follows the playhead rather than the other way round.
   [...dom.log.children].forEach((li, i) => {
     li.classList.toggle("now", i === index - 1);
     li.classList.toggle("seen", i < index - 1);
   });
   const now = dom.log.children[index - 1];
   if (now) now.scrollIntoView({ block: "nearest" });
+}
+
+/** The floating number, parented to the Card it landed on. */
+function drawPop(frame) {
+  document.querySelectorAll(".pop").forEach((n) => n.remove());
+  if (!frame.pop) return;
+  const [side, slot] = frame.pop.at;
+  const unit = frame.board[side][slot];
+  const card = unit && cards[side].get(unit.iid);
+  const host = card || dom[side].querySelector(".slots").children[slot];
+  if (!host) return;
+  const pop = document.createElement("span");
+  pop.className = `pop ${frame.pop.kind}`;
+  pop.textContent = frame.pop.text;
+  host.append(pop);
+  setTimeout(() => pop.remove(), 900);
+}
+
+/** The line from attacker to target: which Slot drew which, made visible. */
+function drawTracer(frame) {
+  dom.tracer.replaceChildren();
+  if (!frame.strike) return;
+  const [[fromSide, fromSlot], [toSide, toSlot]] = frame.strike;
+  const at = (side, slot) => {
+    const unit = frame.board[side][slot];
+    const el = (unit && cards[side].get(unit.iid))
+      || dom[side].querySelector(".slots").children[slot];
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const board = dom.board.getBoundingClientRect();
+    return [r.left - board.left + r.width / 2, r.top - board.top + r.height / 2];
+  };
+  const a = at(fromSide, fromSlot), b = at(toSide, toSlot);
+  if (!a || !b) return;
+
+  const svg = "http://www.w3.org/2000/svg";
+  const line = document.createElementNS(svg, "line");
+  line.setAttribute("x1", a[0]); line.setAttribute("y1", a[1]);
+  line.setAttribute("x2", b[0]); line.setAttribute("y2", b[1]);
+  const head = document.createElementNS(svg, "circle");
+  head.setAttribute("cx", b[0]); head.setAttribute("cy", b[1]);
+  head.setAttribute("r", 4);
+  dom.tracer.append(line, head);
+
+  if (!REDUCED.matches) {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    line.style.strokeDasharray = len;
+    line.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
+      { duration: 180, easing: "ease-out" });
+  }
+  const fade = [{ opacity: 1 }, { opacity: 1, offset: 0.55 }, { opacity: 0 }];
+  dom.tracer.animate(fade, { duration: 620, easing: "ease-in" });
+  setTimeout(() => dom.tracer.replaceChildren(), 600);
 }
 
 function inspect(unit, side) {
@@ -1055,6 +1229,10 @@ function runFight() {
 
   state.reply = reply;
   state.frames = buildFrames(reply);
+  for (const side of ["player", "opposing"]) {
+    dom[side].querySelector(".cards").replaceChildren();
+    cards[side].clear();
+  }
 
   dom.log.replaceChildren();
   reply.narration.forEach((line) => {
