@@ -4,3 +4,7 @@ target/
 # Python bytecode from scripts/
 __pycache__/
 *.py[cod]
+
+# Web build output (scripts/build_web.py rebuilds both in one command)
+web/bg.html
+web/bg_wasm.wasm

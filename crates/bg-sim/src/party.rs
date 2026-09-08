@@ -6,6 +6,8 @@
 
 use std::collections::BTreeSet;
 
+use serde::Serialize;
+
 use crate::units::{DefId, Keyword, Tribe, UnitDef};
 
 /// Slots per Party. Eight, and the number is deliberate: a Party is built to
@@ -17,7 +19,7 @@ pub const SLOTS: usize = 8;
 /// There is one Player; the opposing Party is data rather than a participant
 /// (ADR 0006). `Side` distinguishes the two Parties on the Board, not two
 /// players.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum Side {
     Player,
     Opposing,
@@ -54,7 +56,7 @@ impl Side {
 /// been buffed and then damaged has no memory of how it got where it is. That is
 /// deliberate -- it keeps a Unit's state readable on its own, and there is no
 /// recomputation order to get wrong.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Unit {
     /// The Definition this was made from. Abilities are looked up through it.
     pub def: DefId,
@@ -120,7 +122,7 @@ impl Unit {
 /// interior gaps. A death punches a hole that stays open for the rest of the
 /// Pass, and [`Party::compact`] closes it only once that Pass ends -- which is
 /// what holds Slots still under the attack order while a Pass runs (ADR 0009).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
 pub struct Party {
     slots: [Option<Unit>; SLOTS],
 }
@@ -237,7 +239,7 @@ impl std::error::Error for PartyFull {}
 
 /// The two Parties contesting an Action Phase. Targeting is random (ADR 0008), so
 /// Slots do not face one another the way this once implied.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
 pub struct Board {
     pub player: Party,
     pub opposing: Party,

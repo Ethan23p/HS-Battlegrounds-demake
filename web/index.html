@@ -1,0 +1,1096 @@
+<title>Beat Table</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+/* ---------------------------------------------------------------------------
+   Beat Table -- a step sequencer for an Action Phase.
+
+   The engine's clock is the design. A Beat is a time-step in which Slot n acts,
+   so the eight Slots and the eight steps of the transport are the same eight
+   columns: the ruler across the top, the opposing Party, and the player Party
+   all sit on one 8-column grid, and the playhead is a column sweeping left to
+   right. Nothing here is decoration that isn't also the mechanism.
+
+   One visual world, deliberately: this is an instrument reading a dark board,
+   and a light variant would be a different product. Every colour is therefore
+   painted explicitly rather than inherited from the host.
+--------------------------------------------------------------------------- */
+
+:root {
+  /* Ground: deep indigo-black, biased toward the teal clock rather than neutral. */
+  --ground:    #12141d;
+  --surface:   #1a1e2b;
+  --raised:    #222738;
+  --line:      #2e3448;
+  --line-soft: #23283a;
+
+  --ink:       #e7e9f2;
+  --ink-dim:   #9aa1b8;
+  --ink-faint: #666d85;
+
+  /* The two Parties. Warm below, cool above -- the player is always the warm one. */
+  --player:      #e9a441;
+  --player-deep: #6b4415;
+  --opposing:      #d9525f;
+  --opposing-deep: #6a1f26;
+
+  /* The clock. Teal belongs to time -- ruler, playhead, readout, scrubber. */
+  --beat:      #45c8b0;
+  --beat-deep: #12403a;
+
+  --shield: #93c9f5;
+  --poison: #8ecb4f;
+  --dead:   #4c5268;
+
+  --step: 0.25rem;
+  --radius: 3px;
+
+  --ui: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Uppercase micro-labels carry the instrument's voice. */
+.label {
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.shell {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.75rem, 1.6vw, 1.25rem);
+}
+
+/* --- Header ------------------------------------------------------------- */
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.1rem, 3.4vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+h1 .mark { color: var(--beat); }
+
+header .sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-left: auto;
+}
+
+/* --- Setup bar ---------------------------------------------------------- */
+
+.setup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 0.6rem;
+  min-height: 40px;
+}
+
+.field .label { white-space: nowrap; }
+.setup .field:first-child { flex: 1 1 20rem; }
+
+select, input[type="number"] {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 0.35rem 0;
+  min-height: 38px;
+}
+
+select { font-family: var(--ui); flex: 1; min-width: 0; }
+input[type="number"] { width: 8ch; }
+select:focus-visible, input:focus-visible, button:focus-visible {
+  outline: 2px solid var(--beat);
+  outline-offset: 2px;
+}
+
+button {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-height: 40px;
+  padding: 0 0.85rem;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+button:hover { background: #2b3145; border-color: #3d4460; }
+button:disabled { opacity: 0.35; cursor: default; }
+button.primary { background: var(--beat-deep); border-color: #1d6459; color: #c9f3ea; }
+button.primary:hover { background: #17544c; }
+
+/* --- The page splits; the board never does ------------------------------ */
+
+.stage {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(0.75rem, 1.6vw, 1.25rem);
+  align-items: start;
+}
+
+@media (min-width: 1000px) {
+  .stage { grid-template-columns: minmax(0, 1fr) 21rem; }
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+/* --- The board: one 8-column unit that only ever changes scale ---------- */
+
+.board {
+  container-type: inline-size;
+  padding: clamp(0.5rem, 1.4cqw, 1rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9cqw;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.9cqw;
+}
+
+/* The ruler is the transport and the Slot header at once: step n is Slot n. */
+.ruler .tick {
+  font-family: var(--mono);
+  font-size: max(9px, 1.5cqw);
+  font-weight: 500;
+  color: var(--ink-faint);
+  text-align: center;
+  padding: 0.3cqw 0;
+  border-bottom: 2px solid var(--line-soft);
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.ruler .tick.live {
+  color: var(--beat);
+  border-bottom-color: var(--beat);
+}
+
+/* The playhead: the live Beat's column, lit through both Parties. */
+.cell {
+  position: relative;
+  border-radius: 2px;
+}
+.cell.live::before {
+  content: "";
+  position: absolute;
+  inset: -0.45cqw -0.3cqw;
+  background: color-mix(in srgb, var(--beat) 9%, transparent);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* --- The Card: 1:1.6, and the same design at every scale ---------------- */
+
+.card {
+  position: relative;
+  aspect-ratio: 1 / 1.6;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: max(2px, 0.5cqw);
+  background: var(--raised);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, opacity 200ms ease;
+}
+
+.card.empty {
+  background: repeating-linear-gradient(
+    -45deg, transparent 0 3px, var(--line-soft) 3px 4px);
+  border-style: dashed;
+  border-color: var(--line-soft);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.row.player  .card:not(.empty) { border-top: max(2px, 0.35cqw) solid var(--player); }
+.row.opposing .card:not(.empty) { border-bottom: max(2px, 0.35cqw) solid var(--opposing); }
+
+.card .badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15cqw;
+  padding: 0.35cqw 0.35cqw 0;
+  min-height: 0;
+}
+
+.badge {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: max(7px, 1.25cqw);
+  line-height: 1;
+  padding: max(1px, 0.25cqw) max(2px, 0.35cqw);
+  border-radius: 2px;
+  background: var(--line);
+  color: var(--ink-dim);
+}
+.badge.T { background: #3a3f57; color: #cdd3e8; }
+.badge.D { background: #1f3a52; color: var(--shield); }
+.badge.W { background: #3d3357; color: #cbb6f0; }
+.badge.P { background: #274219; color: var(--poison); }
+.badge.R { background: #4a3520; color: #f0c48a; }
+
+.card .name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.2cqw 0.3cqw;
+  font-size: max(8px, 1.55cqw);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  overflow: hidden;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.card .stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 0.4cqw 0.35cqw;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: max(11px, 2.9cqw);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.card .atk { color: var(--player); }
+.row.opposing .card .atk { color: #f0b96b; }
+.card .hp { color: #f28d96; }
+.card .hp.hurt { color: var(--opposing); }
+
+/* States the fight puts a card in. */
+.card.shielded {
+  box-shadow: inset 0 0 0 max(1px, 0.3cqw) var(--shield);
+}
+.card.acting {
+  transform: translateY(calc(var(--lunge, 0) * 1.2cqw)) scale(1.04);
+  box-shadow: 0 0 0 max(1px, 0.25cqw) var(--beat), 0 0.6cqw 1.4cqw rgba(0,0,0,0.5);
+  z-index: 2;
+}
+.card.struck { animation: jolt 260ms ease; }
+.card.dying { opacity: 0; transform: scale(0.86); }
+.card.doomed .hp { color: var(--poison); }
+
+@keyframes jolt {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2.5%); }
+  60% { transform: translateX(2%); }
+}
+
+/* Floating damage, anchored to the card it landed on. */
+.pop {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: max(11px, 3.1cqw);
+  line-height: 1;
+  color: #ffffff;
+  text-shadow: 0 0 max(3px, 0.7cqw) rgba(0,0,0,0.9);
+  animation: rise 700ms ease-out forwards;
+  pointer-events: none;
+  z-index: 3;
+}
+.pop.shield { color: var(--shield); }
+.pop.poison { color: var(--poison); }
+
+@keyframes rise {
+  0%   { opacity: 0; transform: translate(-50%, 30%) scale(0.7); }
+  20%  { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -70%) scale(1); }
+}
+
+/* The axis between the Parties carries the clock readout. */
+.axis {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.2cqw 0.1cqw;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.clock {
+  font-family: var(--mono);
+  font-size: max(10px, 1.6cqw);
+  font-weight: 700;
+  color: var(--beat);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.axis .verdict {
+  margin-left: auto;
+  font-family: var(--ui);
+  font-size: max(9px, 1.4cqw);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.verdict.PlayerWins   { color: var(--player); }
+.verdict.OpposingWins { color: var(--opposing); }
+.verdict.Draw, .verdict.Stalemate { color: var(--ink-dim); }
+
+/* --- Transport ---------------------------------------------------------- */
+
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+
+.transport .keys { display: flex; gap: 0.3rem; }
+.transport button { min-width: 44px; padding: 0 0.6rem; }
+
+.scrub {
+  flex: 1 1 100%;
+  order: 3;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 28px;
+  margin: 0;
+  cursor: pointer;
+}
+@media (min-width: 620px) { .scrub { flex: 1 1 12rem; order: 0; } }
+
+.scrub::-webkit-slider-runnable-track {
+  height: 4px; background: var(--line); border-radius: 2px;
+}
+.scrub::-moz-range-track { height: 4px; background: var(--line); border-radius: 2px; }
+.scrub::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; margin-top: -6px;
+  background: var(--beat); border: 0; border-radius: 50%;
+}
+.scrub::-moz-range-thumb {
+  width: 16px; height: 16px; background: var(--beat); border: 0; border-radius: 50%;
+}
+
+.counter {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- Log ---------------------------------------------------------------- */
+
+.log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.log {
+  margin: 0;
+  padding: 0.35rem 0;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  max-height: 15rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+@media (min-width: 1000px) { .log { max-height: 32rem; } }
+
+.log li {
+  padding: 0.1rem 0.75rem;
+  color: var(--ink-faint);
+  border-left: 2px solid transparent;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.log li.seen { color: var(--ink-dim); }
+.log li.now {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--beat) 10%, transparent);
+  border-left-color: var(--beat);
+}
+.log li.beat { color: var(--beat); }
+
+/* --- Inspector ---------------------------------------------------------- */
+
+.inspect {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 9, 14, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 20;
+}
+.inspect[hidden] { display: none; }
+
+.inspect .sheet {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  width: min(22rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.inspect h2 { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.inspect dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 1rem;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.inspect dt { color: var(--ink-faint); }
+.inspect dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+footer {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  line-height: 1.7;
+}
+footer b { color: var(--ink-dim); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+</style>
+
+<div class="shell" lang="en">
+  <header>
+    <h1><span class="mark">◈</span> Beat Table</h1>
+    <div class="sub" id="build">bg-sim · wasm</div>
+  </header>
+
+  <div class="setup">
+    <label class="field">
+      <span class="label">Fight</span>
+      <select id="preset"></select>
+    </label>
+    <label class="field">
+      <span class="label">Seed</span>
+      <input type="number" id="seed" value="1" min="0" step="1">
+    </label>
+    <button id="reseed">New seed</button>
+    <button id="run" class="primary">Resolve</button>
+  </div>
+
+  <div class="stage">
+    <div class="panel">
+      <div class="board" id="board">
+        <div class="row ruler" id="ruler"></div>
+        <div class="row opposing" id="opposing"></div>
+        <div class="axis">
+          <span class="clock" id="clock">pass — · beat —</span>
+          <span class="verdict" id="verdict"></span>
+        </div>
+        <div class="row player" id="player"></div>
+      </div>
+      <div class="transport">
+        <div class="keys">
+          <button id="restart" title="Back to the start">⏮</button>
+          <button id="back" title="Previous event">◀</button>
+          <button id="play" class="primary" title="Play">▶</button>
+          <button id="fwd" title="Next event">▶|</button>
+        </div>
+        <button id="speed" title="Playback speed">1×</button>
+        <input type="range" class="scrub" id="scrub" min="0" max="0" value="0">
+        <span class="counter" id="counter">0 / 0</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="log-head">
+        <span class="label">Log</span>
+        <span class="counter" id="passes"></span>
+      </div>
+      <ul class="log" id="log"></ul>
+    </div>
+  </div>
+
+  <footer>
+    Eight columns, one clock: the ruler's step <b>n</b>, the Slot beneath it, and
+    Beat <b>n</b> of the Pass are the same thing. Both Parties act in the lit
+    column at once — the one way this differs from Battlegrounds.<br>
+    The engine is <b>bg-sim</b> compiled to WebAssembly; the same Seed and the
+    same Parties always replay exactly this fight.
+  </footer>
+</div>
+
+<div class="inspect" id="inspect" hidden>
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<script>
+"use strict";
+
+/* --------------------------------------------------------------------------
+   The engine. bg-sim exports four C functions and imports nothing at all, so
+   loading it needs no glue library -- just bytes, and a length prefix on the
+   way back out.
+   -------------------------------------------------------------------------- */
+
+const Engine = {
+  wasm: null,
+
+  async load() {
+    const inline = document.getElementById("wasm-b64");
+    let bytes;
+    if (inline) {
+      const raw = atob(inline.textContent.trim());
+      bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    } else {
+      const res = await fetch("./bg_wasm.wasm");
+      if (!res.ok) throw new Error("bg_wasm.wasm not found beside this page");
+      bytes = new Uint8Array(await res.arrayBuffer());
+    }
+    const { instance } = await WebAssembly.instantiate(bytes, {});
+    this.wasm = instance.exports;
+    return bytes.length;
+  },
+
+  resolve(request) {
+    const w = this.wasm;
+    const body = new TextEncoder().encode(JSON.stringify(request));
+    const inPtr = w.bg_alloc(body.length);
+    new Uint8Array(w.memory.buffer, inPtr, body.length).set(body);
+
+    // bg_resolve consumes the request buffer and hands back [u32 len][utf-8].
+    const outPtr = w.bg_resolve(inPtr, body.length);
+    const len = new DataView(w.memory.buffer).getUint32(outPtr, true);
+    const text = new TextDecoder().decode(
+      new Uint8Array(w.memory.buffer, outPtr + 4, len));
+    w.bg_free(outPtr, len + 4);
+
+    const reply = JSON.parse(text);
+    if (reply.error) throw new Error(reply.error);
+    return reply;
+  },
+};
+
+/* --------------------------------------------------------------------------
+   Fights. Parties are built by hand until the Prep Phase exists (v0.2); each
+   preset is chosen to put one keyword interaction on screen.
+   -------------------------------------------------------------------------- */
+
+const u = (name, attack, health, keywords = [], tribes = []) =>
+  ({ name, attack, health, keywords, tribes });
+
+const PRESETS = [
+  {
+    name: "Windfury against a shield wall",
+    player: [
+      u("Bait", 1, 1),
+      u("Gustcaller", 3, 6, ["Windfury"], ["Elemental"]),
+      u("Standfast", 2, 5, ["Taunt"]),
+    ],
+    opposing: [
+      u("Bulwark", 2, 4, ["DivineShield", "Taunt"]),
+      u("Ashling", 1, 2, ["Reborn"], ["Elemental"]),
+      u("Sparrer", 3, 3),
+    ],
+  },
+  {
+    name: "Poison into a big body",
+    player: [
+      u("Nettlefang", 1, 2, ["Poisonous"], ["Beast"]),
+      u("Screener", 1, 4, ["Taunt"]),
+    ],
+    opposing: [
+      u("Hillbreaker", 7, 9, [], ["Quilboar"]),
+      u("Hillbreaker's Kin", 4, 6, ["DivineShield"], ["Quilboar"]),
+    ],
+  },
+  {
+    name: "A mutual trade — nobody swings first",
+    player: [u("Mirror", 4, 4), u("Mirror", 4, 4), u("Mirror", 4, 4)],
+    opposing: [u("Mirror", 4, 4), u("Mirror", 4, 4), u("Mirror", 4, 4)],
+  },
+  {
+    name: "Full boards, eight a side",
+    player: [
+      u("Vanguard", 2, 3, ["Taunt"]), u("Skirmisher", 3, 2),
+      u("Emberling", 2, 2, [], ["Elemental"]), u("Tidecaller", 1, 4, [], ["Murloc"]),
+      u("Gale", 2, 4, ["Windfury"]), u("Warden", 1, 6, ["Taunt"]),
+      u("Rookling", 2, 1, ["Reborn"]), u("Closer", 5, 2),
+    ],
+    opposing: [
+      u("Ironhide", 3, 5, ["Taunt", "DivineShield"]), u("Barbfin", 2, 2, ["Poisonous"]),
+      u("Scrapper", 4, 3, [], ["Mech"]), u("Grubling", 1, 3, [], ["Beast"]),
+      u("Flarewing", 3, 3, [], ["Dragon"]), u("Reveller", 2, 5),
+      u("Dustling", 1, 1, ["Reborn"]), u("Hammerfall", 6, 4),
+    ],
+  },
+];
+
+/* --------------------------------------------------------------------------
+   Replay. The log is an ordered list of mutations, so the Board at step k is
+   the initial Board with the first k events applied. Precomputing every frame
+   is what makes scrubbing and stepping backwards free.
+   -------------------------------------------------------------------------- */
+
+const SLOTS = 8;
+const BADGE = {
+  Taunt: "T", DivineShield: "D", Windfury: "W", Poisonous: "P", Reborn: "R",
+};
+
+const cloneSide = (side) => side.map((unit) => (unit ? { ...unit, keywords: [...unit.keywords] } : null));
+const cloneBoard = (b) => ({ player: cloneSide(b.player), opposing: cloneSide(b.opposing) });
+const other = (side) => (side === "player" ? "opposing" : "player");
+const lower = (side) => (side === "Player" ? "player" : "opposing");
+
+function startingBoard(initial) {
+  const read = (party) => party.slots.map((s) => (s ? { ...s, keywords: [...s.keywords] } : null));
+  return { player: read(initial.player), opposing: read(initial.opposing) };
+}
+
+/** Every frame of the fight: a Board, plus what to light up on it. */
+function buildFrames(reply) {
+  let board = startingBoard(reply.initial);
+  const frames = [{
+    board: cloneBoard(board), text: "the parties take the field",
+    pass: 0, beat: 0, acting: [], hit: null, pop: null, verdict: null,
+  }];
+
+  const log = reply.log;
+  let pass = 0, beat = 0;
+  // A Reborn event restores what the Died event just removed, so the last body
+  // out of each Slot has to be remembered until the next event has spoken.
+  const morgue = {};
+
+  log.forEach((e, i) => {
+    const frame = {
+      text: reply.narration[i], pass, beat,
+      acting: [], hit: null, pop: null, verdict: null,
+    };
+
+    switch (e.kind) {
+      case "Compacted": {
+        const side = lower(e.side);
+        const living = board[side].filter(Boolean);
+        board[side] = living.concat(Array(SLOTS - living.length).fill(null));
+        frame.pass = pass = e.pass;
+        frame.beat = beat = 0;
+        break;
+      }
+      case "BeatBegan":
+        frame.pass = pass = e.pass;
+        frame.beat = beat = e.beat;
+        break;
+
+      case "Struck": {
+        const by = lower(e.by), at = other(by);
+        const aSlot = e.attacker_slot - 1, tSlot = e.target_slot - 1;
+        frame.acting = [[by, aSlot]];
+        frame.hit = [at, tSlot];
+
+        // The shield is reported on the event *after* the strike, so the frame
+        // has to look one ahead to know whether the damage actually landed.
+        const next = log[i + 1];
+        const shielded = next && next.kind === "ShieldAbsorbed"
+          && lower(next.side) === at && next.slot === e.target_slot;
+
+        const target = board[at][tSlot];
+        if (shielded) {
+          frame.pop = { at: [at, tSlot], text: "◇", kind: "shield" };
+        } else if (target) {
+          target.health -= e.damage;
+          frame.pop = { at: [at, tSlot], text: `−${e.damage}`, kind: "hit" };
+        }
+        break;
+      }
+
+      case "ShieldAbsorbed": {
+        const side = lower(e.side), slot = e.slot - 1;
+        const unit = board[side][slot];
+        if (unit) unit.keywords = unit.keywords.filter((k) => k !== "DivineShield");
+        frame.hit = [side, slot];
+        break;
+      }
+
+      case "Died": {
+        const side = lower(e.side), slot = e.slot - 1;
+        morgue[`${side}:${slot}`] = board[side][slot];
+        board[side][slot] = null;
+        frame.hit = [side, slot];
+        frame.pop = {
+          at: [side, slot],
+          text: e.poisoned ? "☠" : "✕",
+          kind: e.poisoned ? "poison" : "hit",
+        };
+        break;
+      }
+
+      case "Reborn": {
+        const side = lower(e.side), slot = e.slot - 1;
+        const body = morgue[`${side}:${slot}`];
+        if (body) {
+          board[side][slot] = {
+            ...body,
+            health: 1,
+            keywords: body.keywords.filter((k) => k !== "Reborn"),
+          };
+        }
+        frame.acting = [[side, slot]];
+        break;
+      }
+
+      case "Ended":
+        frame.verdict = e.outcome;
+        frame.beat = beat = 0;
+        break;
+    }
+
+    frame.board = cloneBoard(board);
+    frames.push(frame);
+  });
+
+  return frames;
+}
+
+/* --------------------------------------------------------------------------
+   The view.
+   -------------------------------------------------------------------------- */
+
+const el = (id) => document.getElementById(id);
+const dom = {
+  ruler: el("ruler"), player: el("player"), opposing: el("opposing"),
+  clock: el("clock"), verdict: el("verdict"), log: el("log"),
+  scrub: el("scrub"), counter: el("counter"), passes: el("passes"),
+  play: el("play"), speed: el("speed"), inspect: el("inspect"), sheet: el("sheet"),
+};
+
+const state = {
+  frames: [], at: 0, playing: false, rate: 1, timer: null, reply: null,
+};
+
+const SPEEDS = [0.5, 1, 2, 4];
+
+// The eight Slots are the eight steps; build the ruler once.
+for (let i = 1; i <= SLOTS; i++) {
+  const tick = document.createElement("div");
+  tick.className = "tick";
+  tick.textContent = i;
+  dom.ruler.append(tick);
+}
+
+function cardMarkup(unit, side) {
+  const cell = document.createElement("div");
+  cell.className = "cell";
+  const card = document.createElement("div");
+
+  if (!unit) {
+    card.className = "card empty";
+    cell.append(card);
+    return { cell, card };
+  }
+
+  card.className = "card";
+  if (unit.keywords.includes("DivineShield")) card.classList.add("shielded");
+  if (unit.doomed) card.classList.add("doomed");
+
+  const badges = document.createElement("div");
+  badges.className = "badges";
+  for (const k of unit.keywords) {
+    const b = document.createElement("span");
+    b.className = `badge ${BADGE[k] || ""}`;
+    b.textContent = BADGE[k] || "?";
+    b.title = k;
+    badges.append(b);
+  }
+
+  const name = document.createElement("div");
+  name.className = "name";
+  name.textContent = unit.name;
+
+  const stats = document.createElement("div");
+  stats.className = "stats";
+  const atk = document.createElement("span");
+  atk.className = "atk";
+  atk.textContent = unit.attack;
+  const hp = document.createElement("span");
+  hp.className = "hp" + (unit.health < unit.max_health ? " hurt" : "");
+  hp.textContent = unit.health;
+  stats.append(atk, hp);
+
+  card.append(badges, name, stats);
+  card.addEventListener("click", () => inspect(unit, side));
+  cell.append(card);
+  return { cell, card };
+}
+
+function draw(index) {
+  const frame = state.frames[index];
+  if (!frame) return;
+
+  for (const side of ["player", "opposing"]) {
+    const row = dom[side];
+    row.replaceChildren();
+    for (let slot = 0; slot < SLOTS; slot++) {
+      const { cell, card } = cardMarkup(frame.board[side][slot], side);
+      if (frame.beat > 0 && slot === frame.beat - 1) cell.classList.add("live");
+
+      if (frame.acting.some(([s, i]) => s === side && i === slot)) {
+        card.classList.add("acting");
+        card.style.setProperty("--lunge", side === "player" ? -1 : 1);
+      }
+      if (frame.hit && frame.hit[0] === side && frame.hit[1] === slot) {
+        card.classList.add("struck");
+      }
+      if (frame.pop && frame.pop.at[0] === side && frame.pop.at[1] === slot) {
+        const pop = document.createElement("span");
+        pop.className = `pop ${frame.pop.kind}`;
+        pop.textContent = frame.pop.text;
+        cell.append(pop);
+      }
+      row.append(cell);
+    }
+  }
+
+  for (let i = 0; i < SLOTS; i++) {
+    dom.ruler.children[i].classList.toggle("live", frame.beat === i + 1);
+  }
+
+  dom.clock.textContent = frame.pass
+    ? `pass ${frame.pass} · beat ${frame.beat}`
+    : "pass — · beat —";
+
+  const verdict = frame.verdict || (index === state.frames.length - 1 ? state.reply.outcome : null);
+  dom.verdict.textContent = verdict ? verdict.replace(/([a-z])([A-Z])/g, "$1 $2") : "";
+  dom.verdict.className = "verdict " + (verdict || "");
+
+  dom.scrub.value = index;
+  dom.counter.textContent = `${index} / ${state.frames.length - 1}`;
+
+  // The log follows the playhead rather than the other way round.
+  [...dom.log.children].forEach((li, i) => {
+    li.classList.toggle("now", i === index - 1);
+    li.classList.toggle("seen", i < index - 1);
+  });
+  const now = dom.log.children[index - 1];
+  if (now) now.scrollIntoView({ block: "nearest" });
+}
+
+function inspect(unit, side) {
+  dom.sheet.replaceChildren();
+  const h = document.createElement("h2");
+  h.textContent = unit.name;
+  const dl = document.createElement("dl");
+  const rows = [
+    ["Party", side === "player" ? "Yours" : "Opposing"],
+    ["Attack", unit.attack],
+    ["Health", `${unit.health} of ${unit.max_health}`],
+    ["Keywords", unit.keywords.length ? unit.keywords.join(", ") : "none"],
+    ["Tribes", unit.tribes.length ? unit.tribes.join(", ") : "none"],
+    ["Definition", unit.def],
+  ];
+  for (const [k, v] of rows) {
+    const dt = document.createElement("dt");
+    dt.textContent = k;
+    const dd = document.createElement("dd");
+    dd.textContent = v;
+    dl.append(dt, dd);
+  }
+  const close = document.createElement("button");
+  close.textContent = "Close";
+  close.addEventListener("click", () => { dom.inspect.hidden = true; });
+  dom.sheet.append(h, dl, close);
+  dom.inspect.hidden = false;
+  close.focus();
+}
+
+dom.inspect.addEventListener("click", (e) => {
+  if (e.target === dom.inspect) dom.inspect.hidden = true;
+});
+
+/* --- Transport ---------------------------------------------------------- */
+
+function go(index) {
+  state.at = Math.max(0, Math.min(index, state.frames.length - 1));
+  draw(state.at);
+  if (state.at >= state.frames.length - 1) stop();
+}
+
+function tick() {
+  if (state.at >= state.frames.length - 1) { stop(); return; }
+  go(state.at + 1);
+  const frame = state.frames[state.at];
+  // Beat headers are structural, not action -- pass through them quickly.
+  const dwell = (frame.text || "").startsWith("--") ? 140 : 560;
+  state.timer = setTimeout(tick, dwell / state.rate);
+}
+
+function play() {
+  if (state.at >= state.frames.length - 1) go(0);
+  state.playing = true;
+  dom.play.textContent = "⏸";
+  dom.play.title = "Pause";
+  tick();
+}
+
+function stop() {
+  state.playing = false;
+  clearTimeout(state.timer);
+  dom.play.textContent = "▶";
+  dom.play.title = "Play";
+}
+
+el("play").addEventListener("click", () => (state.playing ? stop() : play()));
+el("back").addEventListener("click", () => { stop(); go(state.at - 1); });
+el("fwd").addEventListener("click", () => { stop(); go(state.at + 1); });
+el("restart").addEventListener("click", () => { stop(); go(0); });
+dom.scrub.addEventListener("input", () => { stop(); go(+dom.scrub.value); });
+
+dom.speed.addEventListener("click", () => {
+  state.rate = SPEEDS[(SPEEDS.indexOf(state.rate) + 1) % SPEEDS.length];
+  dom.speed.textContent = `${state.rate}×`;
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, select")) return;
+  if (e.key === " ") { e.preventDefault(); state.playing ? stop() : play(); }
+  if (e.key === "ArrowRight") { stop(); go(state.at + 1); }
+  if (e.key === "ArrowLeft") { stop(); go(state.at - 1); }
+  if (e.key === "Escape") dom.inspect.hidden = true;
+});
+
+/* --- Running a fight ---------------------------------------------------- */
+
+function runFight() {
+  stop();
+  const preset = PRESETS[+el("preset").value];
+  const seed = Number(el("seed").value) || 0;
+
+  let reply;
+  try {
+    reply = Engine.resolve({ seed, player: preset.player, opposing: preset.opposing });
+  } catch (err) {
+    dom.log.replaceChildren(Object.assign(document.createElement("li"), {
+      textContent: `the engine refused this fight: ${err.message}`,
+    }));
+    return;
+  }
+
+  state.reply = reply;
+  state.frames = buildFrames(reply);
+
+  dom.log.replaceChildren();
+  reply.narration.forEach((line) => {
+    const li = document.createElement("li");
+    li.textContent = line.replace(/^\s+/, "");
+    if (line.startsWith("--") || line.startsWith("==")) li.classList.add("beat");
+    dom.log.append(li);
+  });
+
+  dom.scrub.max = state.frames.length - 1;
+  dom.passes.textContent = `${reply.passes} passes · ${reply.log.length} events`;
+  go(0);
+  play();
+}
+
+el("run").addEventListener("click", runFight);
+el("preset").addEventListener("change", runFight);
+el("seed").addEventListener("change", runFight);
+el("reseed").addEventListener("click", () => {
+  el("seed").value = Math.floor(Math.random() * 100000);
+  runFight();
+});
+
+PRESETS.forEach((p, i) => {
+  const opt = document.createElement("option");
+  opt.value = i;
+  opt.textContent = p.name;
+  el("preset").append(opt);
+});
+
+Engine.load().then((size) => {
+  el("build").textContent = `bg-sim · wasm ${(size / 1024).toFixed(0)} KB`;
+  runFight();
+}).catch((err) => {
+  dom.log.replaceChildren(Object.assign(document.createElement("li"), {
+    textContent: `the engine did not load: ${err.message}`,
+  }));
+});
+</script>

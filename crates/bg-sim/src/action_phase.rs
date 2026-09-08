@@ -33,6 +33,8 @@
 //! Slots are numbered **1 through 8** in the rules, in this log, and in every Event
 //! below. The array index behind a Slot is zero-based, and only this module knows it.
 
+use serde::Serialize;
+
 use crate::party::{Board, Party, SLOTS, Side, Unit};
 use crate::rng::Rng;
 use crate::units::{DefId, Keyword};
@@ -50,7 +52,7 @@ fn slot_no(index: usize) -> u32 {
 }
 
 /// How an Action Phase ended.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Outcome {
     PlayerWins,
     OpposingWins,
@@ -65,7 +67,8 @@ pub enum Outcome {
 /// The log is the Action Phase's explanation of itself. A frontend animates
 /// these in order and needs to know nothing else; a test asserts against them
 /// without reaching into engine internals. Every Slot number here counts from 1.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind")]
 pub enum Event {
     /// Beat 0 of a Pass: this Party closed ranks. Logged only when it actually
     /// moved something.
@@ -168,7 +171,7 @@ impl std::fmt::Display for Event {
 }
 
 /// What an Action Phase produced.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Resolution {
     pub outcome: Outcome,
     /// Passes entered, counting from 1. A fight decided before anyone acted ran

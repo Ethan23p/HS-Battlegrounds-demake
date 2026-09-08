@@ -29,9 +29,13 @@ A Player plays a Prep Phase, then that Party goes to the Action Phase.
 
 Two Players play Rounds until one wins.
 
-- Both occupied, by bots or a human via the terminal frontend.
+- Both occupied, by bots or a human via the web frontend
+  ([ADR 0010](../adr/0010-the-frontend-is-a-web-page.md)); the terminal stays a
+  rule-reading tool.
 - Health, damage on loss, victory.
-- Enough frontend to play a full Run by hand, enough logging to read one back.
+- Enough frontend to play a full Run by hand, enough logging to read one back. The
+  Action Phase half of that already exists: the page replays a resolved fight with a
+  transport, on a phone as readily as a desktop.
 
 Determinism pays out: thousands of seeded Runs run unattended, and a rule bug becomes an
 anecdote no longer — just a reproducible Seed.

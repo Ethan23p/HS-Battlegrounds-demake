@@ -32,6 +32,8 @@ read `codebase-design`, `domain-modeling`, and `grilling` from a clone if needed
 |---|---|
 | `crates/bg-sim/` | The engine. Pure rules; no I/O. Deterministic given a Seed. |
 | `crates/bg-cli/` | The terminal frontend. Thin; currently a stub. |
+| `crates/bg-wasm/` | The web seam. Thin; JSON in, resolved Action Phase out. |
+| `web/` | The frontend: one HTML page driving the engine as WebAssembly. |
 | `CONTEXT.md` | Glossary. No implementation detail. |
 | `docs/design/` | Vision and roadmap. |
 | `docs/adr/` | Numbered decisions, with reasoning. |
@@ -39,8 +41,8 @@ read `codebase-design`, `domain-modeling`, and `grilling` from a clone if needed
 | `docs/transcripts/` | Exports of the design conversations. |
 | `scripts/` | Tooling outside the build. |
 
-`bg-sim` doesn't depend on `bg-cli` and can't do I/O — "deep backend, shallow frontend"
-made structural.
+`bg-sim` depends on neither frontend and can't do I/O — "deep backend, shallow frontend"
+made structural. `bg-cli` and `bg-wasm` are siblings: both adapters, neither holds rules.
 
 ## Commands
 
@@ -50,7 +52,10 @@ cargo test -p bg-sim        # just the engine
 cargo clippy --all-targets  # lints
 cargo fmt --all             # format
 python3 scripts/export_transcript.py --list   # available session transcripts
+python3 scripts/build_web.py                 # build web/bg.html (engine inlined)
 ```
+
+`web/bg.html` is self-contained — open it from anywhere, no server, no network.
 
 ## State of play
 
@@ -59,6 +64,12 @@ ability vocabulary as data (provisional, Effects not yet executed); Units/Partie
 Board; and **the Action Phase**, `resolve(board, rng) -> Resolution` — Windfury, Divine
 Shield, Poisonous, Reborn, and Taunt all live. Clippy clean. `cargo run -p bg-sim
 --example watch` prints a narrated fight.
+
+**The frontend** is a web page driving `bg-sim` as WebAssembly
+([ADR 0010](docs/adr/0010-the-frontend-is-a-web-page.md)) — one 8-column grid where the
+transport's step *n*, Slot *n*, and Beat *n* are the same column, and the Action Phase
+plays back with a scrubber. Same page on a phone and a desktop. Its name, *Beat Table*,
+is a placeholder awaiting ratification.
 
 Targeting is **random, respecting Taunt**, and every attack draws its own target —
 exactly Battlegrounds' rule. Simultaneity (both sides' current attacker acting in the
@@ -85,8 +96,11 @@ Deathrattles, the modifier stage
 get written here too.
 
 **Open:**
-1. Reborn's exact stats on return — unverified against Battlegrounds.
-2. Damage-on-loss — deferred to v0.2/v0.3, computed from `Resolution::final_board`'s
+1. The eight design questions the Abilities build is waiting on — summon placement
+   against ADR 0009, Deathrattle timing and cascade discipline, Start-of-Action-Phase
+   ordering, and how Unit data files reach the engine.
+2. Reborn's exact stats on return — unverified against Battlegrounds.
+3. Damage-on-loss — deferred to v0.2/v0.3, computed from `Resolution::final_board`'s
    survivors once Health exists. The Action Phase itself no longer produces it.
 
 **Vocabulary is Ethan's.** Claude's inventions are placeholders until ratified. *Pool*
