@@ -68,9 +68,10 @@ Nothing ever attacks a Player: that is Hearthstone, not Battlegrounds. `rng` dra
 `Domain::Combat` starting in v0.1, not waiting for Effects.
 
 **Decided:** one Player against a stream of opposing Parties; the Action Phase resolves
-Beats simultaneously, a Beat being a time-step of the Board in which Beat n resolves Slot
-n; Parties are left-anchored and close ranks only at Beat 0
-([ADR 0009](docs/adr/0009-the-party-is-left-anchored.md)); 8 Slots per Party;
+Beats simultaneously, a Beat being a time-step of the Board in which the left-most Unit of
+each Party still owing a turn acts — Beats count from 1 and never reset, and Parties are
+left-anchored runs that never hold a gap
+([ADR 0010](docs/adr/0010-the-clock-is-a-beat-counter.md)); 8 Slots per Party;
 asynchronous Rounds, unbounded Prep; three loosely-coupled, bounded resources (Economy,
 Power, Units); an original minimal Unit set; no heroes yet; headless-first; Abilities as
 data through a pipeline with a modifier stage. See [`docs/adr/`](docs/adr/).
@@ -88,7 +89,10 @@ get written here too.
 1. Reborn's exact stats on return — unverified against Battlegrounds.
 2. Damage-on-loss — deferred to v0.2/v0.3, computed from `Resolution::final_board`'s
    survivors once Health exists. The Action Phase itself no longer produces it.
+3. Does a summoned Unit arrive Ready, and so act before the Board next comes Ready? Only
+   observable once Effects can summon — see the open question in
+   [ADR 0010](docs/adr/0010-the-clock-is-a-beat-counter.md).
 
 **Vocabulary is Ethan's.** Claude's inventions are placeholders until ratified. *Pool*
-and *action* stay non-specific. *Card* is the visual representation of a Unit; the engine
+and *action* stay non-specific; *Pass* was retired rather than ratified. *Card* is the visual representation of a Unit; the engine
 never mentions it.

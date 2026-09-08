@@ -3,13 +3,21 @@
 //! A [`UnitDef`] is immutable data shared by every Unit made from it; a [`Unit`]
 //! is one mutable instance standing in one Slot. Keeping them apart is what lets
 //! two copies of the same Definition take damage independently.
+//!
+//! **A Party has no gaps.** It is an ordered run of Units anchored on its
+//! left-most, and a Slot is simply where a Unit stands in that run -- so "Slot 3
+//! is empty" is not a state this type can be in. Nothing has to be compacted,
+//! because nothing is ever uncompacted. What the Action Phase's clock walks is
+//! not Slot numbers but the Units' own [`Unit::ready`] flag, so a death shifting
+//! everyone left cannot make the clock skip a Unit or visit one twice
+//! (ADR 0010).
 
 use std::collections::BTreeSet;
 
 use crate::units::{DefId, Keyword, Tribe, UnitDef};
 
 /// Slots per Party. Eight, and the number is deliberate: a Party is built to
-/// fill it, so every Slot left empty is a decision.
+/// fill it, so every Slot left unfilled is a decision.
 pub const SLOTS: usize = 8;
 
 /// Which Party a Unit belongs to.
@@ -53,7 +61,9 @@ impl Side {
 /// Stats are current values, not modifiers over the Definition: a Unit that has
 /// been buffed and then damaged has no memory of how it got where it is. That is
 /// deliberate -- it keeps a Unit's state readable on its own, and there is no
-/// recomputation order to get wrong.
+/// recomputation order to get wrong. [`Unit::ready`] follows the same principle:
+/// whether this Unit still owes the clock a turn is written on the Unit, not
+/// inferred from a cursor kept somewhere else.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unit {
     /// The Definition this was made from. Abilities are looked up through it.
@@ -73,10 +83,17 @@ pub struct Unit {
     /// Marked when a lethal effect (Poisonous) has struck, independently of
     /// health. Cleared only by the Unit leaving play.
     pub doomed: bool,
+    /// Whether this Unit has yet to act since the Board last came Ready.
+    ///
+    /// This is the whole of the Action Phase's turn order. Each Beat, the
+    /// left-most Ready Unit of each Party acts and stops being Ready; when
+    /// neither Party has a Ready Unit left, every Unit becomes Ready again --
+    /// the moment Ethan named *before the first Unit acts* (ADR 0010).
+    pub ready: bool,
 }
 
 impl Unit {
-    /// Instantiate a Unit from its Definition at full health.
+    /// Instantiate a Unit from its Definition at full health, owing a turn.
     pub fn new(def: &UnitDef) -> Self {
         Unit {
             def: def.id.clone(),
@@ -89,6 +106,7 @@ impl Unit {
             all_tribes: def.all_tribes,
             reborn_spent: false,
             doomed: false,
+            ready: true,
         }
     }
 
@@ -116,13 +134,13 @@ impl Unit {
 
 /// The Units a Player brings, in the Slots they occupy.
 ///
-/// **Invariant, at Pass boundaries:** Units are packed to the left with no
-/// interior gaps. A death punches a hole that stays open for the rest of the
-/// Pass, and [`Party::compact`] closes it only once that Pass ends -- which is
-/// what holds Slots still under the attack order while a Pass runs (ADR 0009).
+/// **Invariant, always:** a run of Units with no interior gap, at most [`SLOTS`]
+/// long. A death closes up behind it the instant it is applied. The clock is not
+/// disturbed by that, because the clock reads [`Unit::ready`] rather than
+/// counting Slots (ADR 0010).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Party {
-    slots: [Option<Unit>; SLOTS],
+    units: Vec<Unit>,
 }
 
 impl Party {
@@ -131,93 +149,109 @@ impl Party {
         Party::default()
     }
 
-    /// Build a left-packed Party. Units beyond [`SLOTS`] are refused.
+    /// Build a Party. Units beyond [`SLOTS`] are refused.
     pub fn from_units(units: Vec<Unit>) -> Result<Self, PartyFull> {
         if units.len() > SLOTS {
             return Err(PartyFull {
                 attempted: units.len(),
             });
         }
-        let mut party = Party::new();
-        for (i, unit) in units.into_iter().enumerate() {
-            party.slots[i] = Some(unit);
-        }
-        Ok(party)
+        Ok(Party { units })
     }
 
     pub fn get(&self, slot: usize) -> Option<&Unit> {
-        self.slots.get(slot)?.as_ref()
+        self.units.get(slot)
     }
 
     pub fn get_mut(&mut self, slot: usize) -> Option<&mut Unit> {
-        self.slots.get_mut(slot)?.as_mut()
+        self.units.get_mut(slot)
     }
 
-    /// Remove whatever occupies a Slot, leaving a hole.
+    /// Remove whatever occupies a Slot. Everything to its right closes up.
     pub fn take(&mut self, slot: usize) -> Option<Unit> {
-        self.slots.get_mut(slot)?.take()
+        (slot < self.units.len()).then(|| self.units.remove(slot))
     }
 
-    /// Place a Unit in a Slot, returning whatever it displaced.
-    pub fn put(&mut self, slot: usize, unit: Unit) -> Option<Unit> {
-        self.slots[slot].replace(unit)
+    /// Put a Unit into a Slot, pushing whatever stood there rightward. A `slot`
+    /// past the end appends. Refused if the Party is already full.
+    pub fn insert(&mut self, slot: usize, unit: Unit) -> Result<(), PartyFull> {
+        if self.units.len() >= SLOTS {
+            return Err(PartyFull {
+                attempted: self.units.len() + 1,
+            });
+        }
+        self.units.insert(slot.min(self.units.len()), unit);
+        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {
-        self.slots.iter().all(Option::is_none)
+        self.units.is_empty()
     }
 
     pub fn len(&self) -> usize {
-        self.slots.iter().filter(|s| s.is_some()).count()
+        self.units.len()
     }
 
-    /// Occupied Slots, in Slot order, as `(slot, unit)`.
+    /// Every Unit, left to right, as `(slot, unit)`.
     pub fn iter(&self) -> impl Iterator<Item = (usize, &Unit)> {
-        self.slots
-            .iter()
-            .enumerate()
-            .filter_map(|(i, s)| s.as_ref().map(|u| (i, u)))
+        self.units.iter().enumerate()
     }
 
-    /// The Slots immediately left and right of `slot` that hold a Unit.
-    ///
-    /// Adjacency is Slot arithmetic, not a spatial query -- which is only true
-    /// because a Party holds still for the length of a Pass (ADR 0009).
+    /// The Slots either side of `slot`. Adjacency is Slot arithmetic and always
+    /// has been -- with no gaps to skip over, it needs no qualification.
     pub fn neighbours(&self, slot: usize) -> Vec<usize> {
         let mut out = Vec::with_capacity(2);
-        if slot > 0 && self.get(slot - 1).is_some() {
+        if slot > 0 && slot <= self.units.len() {
             out.push(slot - 1);
         }
-        if slot + 1 < SLOTS && self.get(slot + 1).is_some() {
+        if slot + 1 < self.units.len() {
             out.push(slot + 1);
         }
         out
     }
 
-    /// Close interior gaps, preserving order. Restores the left-packed invariant.
-    pub fn compact(&mut self) {
-        let mut write = 0;
-        for read in 0..SLOTS {
-            if self.slots[read].is_some() {
-                if read != write {
-                    self.slots[write] = self.slots[read].take();
-                }
-                write += 1;
-            }
+    /// The left-most Unit that still owes the clock a turn, if any.
+    pub fn first_ready(&self) -> Option<usize> {
+        self.units.iter().position(|u| u.ready)
+    }
+
+    /// Whether any Unit here still owes the clock a turn.
+    pub fn has_ready(&self) -> bool {
+        self.units.iter().any(|u| u.ready)
+    }
+
+    /// Every Unit owes a turn again. The Board's only clock boundary.
+    pub fn ready_all(&mut self) {
+        for unit in &mut self.units {
+            unit.ready = true;
         }
     }
 
-    /// Whether the left-packed invariant currently holds.
-    pub fn is_packed(&self) -> bool {
-        let mut seen_gap = false;
-        for slot in &self.slots {
-            match slot {
-                Some(_) if seen_gap => return false,
-                None => seen_gap = true,
-                _ => {}
+    /// Remove every dead Unit, returning what a Reborn holder spends its Reborn
+    /// to come back as, at the Slot it now stands in.
+    ///
+    /// One sweep, so the survivors close up exactly once and every Slot number
+    /// this returns is already the post-sweep one.
+    pub fn sweep_dead(&mut self) -> Vec<(usize, String)> {
+        let mut kept: Vec<Unit> = Vec::with_capacity(self.units.len());
+        let mut returned = Vec::new();
+        for unit in std::mem::take(&mut self.units) {
+            if !unit.is_dead() {
+                kept.push(unit);
+                continue;
+            }
+            if unit.has(Keyword::Reborn) && !unit.reborn_spent {
+                let mut back = unit;
+                back.reborn_spent = true;
+                back.keywords.remove(&Keyword::Reborn);
+                back.health = 1;
+                back.doomed = false;
+                returned.push((kept.len(), back.name.clone()));
+                kept.push(back);
             }
         }
-        true
+        self.units = kept;
+        returned
     }
 }
 
@@ -236,7 +270,7 @@ impl std::fmt::Display for PartyFull {
 impl std::error::Error for PartyFull {}
 
 /// The two Parties contesting an Action Phase. Targeting is random (ADR 0008), so
-/// Slots do not face one another the way this once implied.
+/// Slots do not face one another.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Board {
     pub player: Party,
@@ -260,6 +294,17 @@ impl Board {
             Side::Player => &mut self.player,
             Side::Opposing => &mut self.opposing,
         }
+    }
+
+    /// Whether anybody anywhere still owes the clock a turn.
+    pub fn has_ready(&self) -> bool {
+        self.player.has_ready() || self.opposing.has_ready()
+    }
+
+    /// Everybody owes a turn again.
+    pub fn ready_all(&mut self) {
+        self.player.ready_all();
+        self.opposing.ready_all();
     }
 }
 
@@ -288,11 +333,12 @@ mod tests {
     }
 
     #[test]
-    fn a_new_unit_starts_at_full_health() {
+    fn a_new_unit_starts_at_full_health_and_owing_a_turn() {
         let u = unit("wisp", 1, 3);
         assert_eq!(u.health, 3);
         assert_eq!(u.max_health, 3);
         assert!(!u.is_dead());
+        assert!(u.ready);
     }
 
     #[test]
@@ -311,10 +357,9 @@ mod tests {
     }
 
     #[test]
-    fn a_party_is_built_left_packed() {
+    fn a_party_occupies_the_slots_from_one_upward() {
         let p = Party::from_units(vec![unit("a", 1, 1), unit("b", 1, 1)]).unwrap();
         assert_eq!(p.len(), 2);
-        assert!(p.is_packed());
         assert_eq!(p.get(0).unwrap().name, "a");
         assert_eq!(p.get(1).unwrap().name, "b");
         assert!(p.get(2).is_none());
@@ -332,43 +377,109 @@ mod tests {
     }
 
     #[test]
-    fn taking_a_unit_leaves_a_hole_that_compaction_closes() {
+    fn taking_a_unit_closes_the_gap_at_once() {
+        // There is no such thing as an empty interior Slot to close later.
         let mut p =
             Party::from_units(vec![unit("a", 1, 1), unit("b", 1, 1), unit("c", 1, 1)]).unwrap();
-        p.take(1);
-        assert!(!p.is_packed(), "a hole is expected mid-Pass");
-        assert!(p.get(2).is_some(), "Slot 2 holds still while the Pass runs");
-
-        p.compact();
-        assert!(p.is_packed());
+        assert_eq!(p.take(1).unwrap().name, "b");
+        assert_eq!(p.len(), 2);
         assert_eq!(p.get(0).unwrap().name, "a");
-        assert_eq!(p.get(1).unwrap().name, "c", "order survives compaction");
+        assert_eq!(
+            p.get(1).unwrap().name,
+            "c",
+            "order survives, position does not"
+        );
         assert!(p.get(2).is_none());
     }
 
     #[test]
-    fn compaction_of_a_packed_party_changes_nothing() {
-        let mut p = Party::from_units(vec![unit("a", 1, 1), unit("b", 1, 1)]).unwrap();
-        let before = p.clone();
-        p.compact();
-        assert_eq!(p, before);
+    fn taking_past_the_end_takes_nothing() {
+        let mut p = Party::from_units(vec![unit("a", 1, 1)]).unwrap();
+        assert!(p.take(3).is_none());
+        assert_eq!(p.len(), 1);
     }
 
     #[test]
-    fn neighbours_are_the_occupied_slots_either_side() {
+    fn inserting_pushes_the_rest_rightward() {
+        let mut p = Party::from_units(vec![unit("a", 1, 1), unit("c", 1, 1)]).unwrap();
+        p.insert(1, unit("b", 1, 1)).unwrap();
+        let names: Vec<&str> = p.iter().map(|(_, u)| u.name.as_str()).collect();
+        assert_eq!(names, ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn a_full_party_refuses_another_unit() {
+        let full: Vec<Unit> = (0..SLOTS).map(|_| unit("x", 1, 1)).collect();
+        let mut p = Party::from_units(full).unwrap();
+        assert_eq!(
+            p.insert(0, unit("late", 1, 1)).unwrap_err(),
+            PartyFull {
+                attempted: SLOTS + 1
+            }
+        );
+    }
+
+    #[test]
+    fn neighbours_are_the_slots_either_side() {
         let mut p =
             Party::from_units(vec![unit("a", 1, 1), unit("b", 1, 1), unit("c", 1, 1)]).unwrap();
         assert_eq!(p.neighbours(1), vec![0, 2]);
-        assert_eq!(p.neighbours(0), vec![1], "no Slot left of 0");
+        assert_eq!(p.neighbours(0), vec![1], "no Slot left of the first");
+        assert_eq!(p.neighbours(2), vec![1], "no Slot right of the last");
         p.take(0);
-        assert_eq!(p.neighbours(1), vec![2], "an empty Slot is not a neighbour");
+        assert_eq!(p.neighbours(1), vec![0], "the survivors closed up");
     }
 
     #[test]
-    fn neighbours_at_the_last_slot_do_not_run_off_the_end() {
-        let full: Vec<Unit> = (0..SLOTS).map(|_| unit("x", 1, 1)).collect();
-        let p = Party::from_units(full).unwrap();
-        assert_eq!(p.neighbours(SLOTS - 1), vec![SLOTS - 2]);
+    fn readiness_is_walked_left_to_right_and_refreshed_together() {
+        let mut p =
+            Party::from_units(vec![unit("a", 1, 1), unit("b", 1, 1), unit("c", 1, 1)]).unwrap();
+        assert_eq!(p.first_ready(), Some(0));
+        p.get_mut(0).unwrap().ready = false;
+        assert_eq!(p.first_ready(), Some(1));
+
+        // A death ahead of the clock must not cost "b" its turn: readiness rides
+        // on the Unit, so closing up cannot skip it.
+        p.take(0);
+        assert_eq!(p.first_ready(), Some(0));
+        assert_eq!(p.get(0).unwrap().name, "b");
+
+        p.get_mut(0).unwrap().ready = false;
+        p.get_mut(1).unwrap().ready = false;
+        assert!(!p.has_ready());
+        p.ready_all();
+        assert_eq!(p.first_ready(), Some(0));
+    }
+
+    #[test]
+    fn sweeping_removes_the_dead_and_brings_reborn_back() {
+        let mut p = Party::from_units(vec![
+            unit("a", 1, 1),
+            Unit::new(&def("phoenix", 1, 1, &[Keyword::Reborn])),
+            unit("c", 1, 1),
+        ])
+        .unwrap();
+        p.get_mut(0).unwrap().health = 0;
+        p.get_mut(1).unwrap().health = 0;
+
+        let returned = p.sweep_dead();
+        assert_eq!(returned, vec![(0, "phoenix".to_owned())], "at its new Slot");
+        let names: Vec<&str> = p.iter().map(|(_, u)| u.name.as_str()).collect();
+        assert_eq!(names, ["phoenix", "c"]);
+        assert_eq!(p.get(0).unwrap().health, 1);
+        assert!(p.get(0).unwrap().reborn_spent);
+        assert!(!p.get(0).unwrap().has(Keyword::Reborn));
+    }
+
+    #[test]
+    fn reborn_is_spent_only_once() {
+        let mut p =
+            Party::from_units(vec![Unit::new(&def("phoenix", 1, 1, &[Keyword::Reborn]))]).unwrap();
+        p.get_mut(0).unwrap().health = 0;
+        assert_eq!(p.sweep_dead().len(), 1);
+        p.get_mut(0).unwrap().health = 0;
+        assert!(p.sweep_dead().is_empty());
+        assert!(p.is_empty());
     }
 
     #[test]
