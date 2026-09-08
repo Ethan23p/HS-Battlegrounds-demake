@@ -16,8 +16,10 @@ and cutting the small actor's losses, so magnitudes can't run away or collapse.
 ## Consequences
 
 - **Three axes give three kinds of decision** instead of one exchange rate.
-- **Compression replaces balance patching** — a sublinear curve bounds scaling without a
-  hand-tuned cap, and keeps small Units relevant late.
+- **Compression replaces balance patching** — the goal is a curve that bounds scaling
+  without a hand-tuned cap and keeps small Units relevant late. *("Sublinear" was
+  Claude's placeholder guess at the shape, not a decision — the curve itself is still
+  open, below.)*
 - **"Conservation" names the *intent***, not a literal balance equation — taxed value is
   removed, not moved.
 - Scope is the **Run**; a meta scope is anticipated but out of scope for the prototype.

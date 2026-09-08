@@ -10,6 +10,13 @@ left-anchored by convention but its engine still tethers positions in places. Bo
 player unable to say, from the board alone, who acts next. Since ordering the Party is
 supposed to be a real decision here, that ambiguity is worth designing out.
 
+**The rule itself is Ethan's, not Claude's:** *"Instead of Battleground's ambiguity about
+positioning, this app will anchor the party on the left-most unit and occasionally
+compact toward them. Compaction is persistently applied in the prep phase, then applied
+scarcely in the action phase"* ([0003](../transcripts/0003-action-phase-corrections.md)).
+Everything below this point — the Beat/Pass mechanism and the **Consequences** section —
+is Claude's engineering of that rule, not further instructions from him.
+
 Two rules do it.
 
 **A Party is anchored on its left-most Unit, and closes ranks toward it.** Persistently
@@ -42,15 +49,14 @@ clock passes over it.
   Units happen to stand where.
 - **A hole is legible state.** An empty interior Slot means "that Unit died earlier this
   Pass", visible rather than bookkept, and it closes at a moment the player can predict.
-- **Summons get a free answer.** Once Effects land, a Token arriving in a Slot the clock
-  has already passed waits for the next Pass; one arriving ahead of the clock acts in this
-  one. No special case, and no ambiguity of the kind Battlegrounds has here.
-- **Adjacency holds still for a Pass**, which is what makes `Selector::Adjacent` (and the
-  [card survey](../research/card-shape-survey.md)'s adjacency capability) cheap: it is
-  Slot arithmetic against an arrangement that isn't moving.
-- **Compaction is a Board change, so it is an Event.** The log is the frontend's only
-  source of truth for animating a fight, and Units sliding left is something a viewer
-  sees; `Compacted` is logged whenever it actually moves something.
+- **Compaction is a Board change, so it is an Event.** `Compacted` is logged whenever it
+  actually moves something — true today, verifiable in `crates/bg-sim`.
+- Two more consequences Claude expected from this rule — about summons and about
+  `Selector::Adjacent` — involve systems that don't exist yet (Effects aren't executed;
+  see the roadmap). Moved to
+  [the scratchpad](../scratchpad/state.md#design-notes-for-unbuilt-systems) as
+  expectations rather than verified consequences, so this ADR doesn't assert things about
+  code that isn't written.
 - Closing ranks every Pass is also what guarantees termination: a non-empty Party always
   re-packs to Slot 1, so a Pass with anyone alive in it always has a Beat that does
   something.
