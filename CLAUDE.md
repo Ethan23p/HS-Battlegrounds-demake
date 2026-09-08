@@ -53,7 +53,7 @@ read `codebase-design`, `domain-modeling`, and `grilling` from a clone if needed
 | `crates/bg-cli/` | An empty stub, scaffolded early as a placeholder frontend crate name. Not *the* frontend — see [vision.md's concept section](docs/design/vision.md#the-concept) and [the scratchpad](docs/scratchpad/state.md) for the open question of its role now that the frontend is stated as TypeScript. |
 | `CONTEXT.md` | Glossary. No implementation detail. |
 | `docs/design/` | The concept, the deltas, and the roadmap. |
-| `docs/adr/` | Numbered engineering decisions, with reasoning. |
+| `docs/adr/` | Numbered engineering decisions, with reasoning — Claude's, not Ethan's; see [its README](docs/adr/README.md) for what that means for claims inside them. |
 | `docs/scratchpad/` | Claude's own working notes — current status, open engineering questions. Nothing here is ratified or binding. |
 | `docs/research/` | Investigation findings, kept so they aren't re-run. |
 | `docs/transcripts/` | Exports of the design conversations — the source of record for every quote cited elsewhere in these docs. |

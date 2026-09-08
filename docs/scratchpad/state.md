@@ -70,3 +70,21 @@ stage. Unit data files get written alongside.
 - `docs/transcripts/README.md` linked to `docs/adr/0010-the-clock-is-a-beat-counter.md`,
   which was never actually written — the beat-counter rewrite it refers to landed inside
   ADR 0009 instead. Link corrected to point there.
+- **ADR 0003 mixed Claude's invented mechanics into what read like a record of Ethan's
+  request.** It was already marked "partially superseded" by ADR 0008, but the callout
+  didn't say *whose* overreach it was, and the struck-through text was detailed enough to
+  be mistaken for something he'd actually asked for. Ethan flagged this directly — the
+  ADRs are entirely Claude-authored, and he'd been reading some of their claims as though
+  they were his own words. Rewrote the callout and every struck-through bullet to say
+  plainly "Claude's invention, not Ethan's request," and added
+  [`docs/adr/README.md`](../adr/README.md) stating the same rule for the whole directory:
+  an unquoted "Ethan wanted X" inside an ADR is Claude's reading, not a fact.
+- **Ingested `codebase-design`, `domain-modeling`, and `grilling`** from Ethan's
+  marketplace (`Ethan23p/ethans-plugins_Claude-Code`, cloned to
+  `/home/user/ethan23p/ethans-plugins_claude-code` — no local copy exists in every
+  container, so a fresh instance may need to re-clone). Confirms this project's ADR and
+  `CONTEXT.md` conventions already match `domain-modeling`'s format docs; its ADR
+  template favors much shorter entries (1-3 sentences, sections added only when they earn
+  their place) than this repo's ADRs actually are — worth knowing as an available
+  direction, not applied wholesale, since Ethan said he isn't interested in following the
+  skills precisely.
