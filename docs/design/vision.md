@@ -1,10 +1,52 @@
 # Vision
 
-> A minimalist demake of Hearthstone: Battlegrounds with a number of key tweaks that make
-> it a distinct auto-battler.
+> I'd like to make a minimalist demake of Hearthstone: Battlegrounds with a number of key
+> tweaks which make it into a distinct autobattler.
+>
+> — Ethan, [transcript 0002](../transcripts/0002-vocabulary-and-action-phase.md)
 
-A gameplay vertical slice of Battlegrounds, *but with* the nine deltas below. The deltas
-are the project; everything else is Battlegrounds.
+## The concept
+
+The project, in Ethan's own words, restated on **2026-09-08**:
+
+> A gameplay vertical slice of Hearthstone: Battlegrounds, with a Rust backend and a
+> TypeScript front-end, and a number of diverging features/configurations — substantial,
+> but not intended to break the model of the source game too drastically.
+
+That's a restatement, not a new decision — the same concept, arrived at across several
+earlier messages, each worth keeping on record rather than letting the latest phrasing
+stand in as if it were the first:
+
+- **The backend, at the very first message:** *"Let's build a remake of Hearthstone:
+  Battlegrounds. Would we be able to do a rust back end using this environment?"* — plus
+  three requirements given as bullets: *"Seeded RNG"*, *"Data-Centric, Highly
+  Configurable... care should be taken to organize an intuitive config"*, and *"Deep
+  Backend, shallow frontend"* ([0001](../transcripts/0001-project-kickoff.md)).
+- **The shape of it, once the design rounds settled down:** *"I'd like to make a
+  minimalist demake of Hearthstone: Battlegrounds with a number of key tweaks which make
+  it into a distinct autobattler"* (epigraph above,
+  [0002](../transcripts/0002-vocabulary-and-action-phase.md)).
+- **The correction that keeps the deltas from drifting:** *"this project is 'just like a
+  gameplay vertical slice of HS: Battlegrounds except with [these tweaks]'... I'm taking
+  refuge in the safety of 'just however battlegrounds does it'"*
+  ([0002](../transcripts/0002-vocabulary-and-action-phase.md)), reinforced later as
+  *"this project is 'just like a gameplay vertical slice of HS: Battlegrounds except with
+  [these tweaks]' these tweaks being the ~5 drastic gameplay modifications I made"*
+  ([0003](../transcripts/0003-action-phase-corrections.md)).
+
+**The frontend is new information, not a restatement.** Nothing before 2026-09-08 names a
+frontend technology — `bg-cli`'s "terminal frontend" framing was Claude's own scaffolding
+guess (*"I made those names up. They aren't a Rust thing, they're just two folders I
+invented five minutes ago"* — [0001](../transcripts/0001-project-kickoff.md)), never a
+decision Ethan made, and the crate is still an empty stub. TypeScript is the first time a
+frontend technology has actually been named. What that means for `bg-cli` — retired, kept
+as a headless test harness, or something else — is open; see
+[the scratchpad](../scratchpad/state.md).
+
+**"Diverging features/configurations... not intended to break the model too drastically"**
+is 2026-09-08's phrasing of the same principle the deltas below have always followed —
+see *The default rule*, next. The deltas are the project; everything else is
+Battlegrounds.
 
 ## The default rule
 
@@ -30,6 +72,10 @@ The list is exhaustive: anything not here works however Battlegrounds works. Eac
 cites the message where Ethan introduced it, and the later ones that shaped it. Quotes
 are verbatim, and the quote is the locator: transcript anchors move when a session is
 re-exported, but his words don't.
+
+"Delta" itself is Claude's word, not Ethan's — but a ratified one, not an unflagged
+invention: *"It's good to tie the concept all together with multiple Deltas, I like
+that"* ([0003](../transcripts/0003-action-phase-corrections.md)).
 
 ### The shape of a Run
 
@@ -169,7 +215,9 @@ Kept here because each has, at some point, been mistaken for one.
 
 ## Presentation
 
-Visually near Battlegrounds, moving toward Marvel Snap.
+Visually near Battlegrounds, moving toward Marvel Snap — *"I'm willing to make the call
+that our visual direction is similar to HS: Battlegrounds, but moving toward Marvel
+Snap"* ([0002](../transcripts/0002-vocabulary-and-action-phase.md)).
 
 ## What this is not
 
