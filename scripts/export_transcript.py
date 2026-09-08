@@ -188,6 +188,7 @@ from pathlib import Path
 # Top-level event "type" values that are pure harness/bookkeeping noise and
 # never contain conversation. Skipped unconditionally.
 LINE_TYPES_SKIPPED = {
+    "queue-operation",
     "mode",
     "atis-latch",
     "last-prompt",
@@ -235,15 +236,6 @@ ANSWER_SIGNAL_PHRASES = (
     "Your questions have been answered:",
 )
 
-# A message typed while Claude is mid-turn is *absorbed* into the running turn
-# instead of becoming a turn of its own, so it never appears as a "user" line at
-# all. It survives only in the queue bookkeeping: an "enqueue" carrying the text,
-# then a "remove" carrying it again with this reason. Recovering it from the
-# "remove" both places it where the interruption landed and makes the recovery
-# exact -- a queued message that was delivered normally ends in "dequeue" and is
-# already exported as its own turn, so there is nothing here to double-count.
-ABSORBED_MID_TURN = "absorbed_mid_turn"
-
 # Content-block "type" values we understand within a "user" line's content
 # list. Anything else is counted and skipped rather than crashing the export.
 # (The assistant-side equivalent -- text/thinking/tool_use/redacted_thinking
@@ -269,7 +261,6 @@ class Stats:
         self.tool_calls_seen = 0
         self.tool_results_seen = 0
         self.answers_recovered = 0
-        self.queued_messages_recovered = 0
         self.thinking_blocks_seen = 0
         self.unknown_block_types: dict[str, int] = {}
         self.unknown_line_shapes = 0
@@ -567,24 +558,6 @@ def render_transcript(events: list[dict], stats: Stats, include_tools: bool) -> 
     for ev in events:
         etype = ev.get("type")
 
-        if etype == "queue-operation":
-            # Everything but an absorbed message is bookkeeping for text that is
-            # exported as its own turn anyway.
-            content = ev.get("content")
-            if (
-                ev.get("reason") == ABSORBED_MID_TURN
-                and isinstance(content, str)
-                and content.strip()
-                and not is_meta_or_harness_text(content)
-            ):
-                flush_claude()
-                stats.user_turns_human += 1
-                stats.queued_messages_recovered += 1
-                add_user(content)
-            else:
-                stats.lines_skipped_type += 1
-            continue
-
         if etype not in ("user", "assistant"):
             stats.lines_skipped_type += 1
             continue
@@ -712,7 +685,6 @@ def build_front_matter(session_path: Path, session_id: str, stats: Stats, includ
         f"  tool_calls_omitted: {stats.tool_calls_seen}",
         f"  tool_results_omitted: {stats.tool_results_seen}",
         f"  answers_recovered: {stats.answers_recovered}",
-        f"  queued_messages_recovered: {stats.queued_messages_recovered}",
         f"  thinking_blocks_omitted: {stats.thinking_blocks_seen}",
         f"  parse_errors: {stats.lines_parse_errors}",
         f"  unknown_block_shapes: {sum(stats.unknown_block_types.values())}",
