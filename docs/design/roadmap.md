@@ -1,6 +1,9 @@
 # Roadmap
 
-Three milestones, each defined by a thing you can *do*. v0.3 is the prototype.
+Three milestones, each defined by a thing you can *do*. v0.3 is the prototype. The
+boundaries are Ethan's own answer to "what's the first moment you'd call it working?":
+*"Let's say v0.1 is A, v0.2 is B, v0.3 is C and the official 'prototype'"*
+([0002](../transcripts/0002-vocabulary-and-action-phase.md)).
 
 ## v0.1 — An Action Phase resolves
 
@@ -29,7 +32,9 @@ A Player plays a Prep Phase, then that Party goes to the Action Phase.
 
 Two Players play Rounds until one wins.
 
-- Both occupied, by bots or a human via the terminal frontend.
+- Both occupied, by bots or a human via a frontend — TypeScript is the stated technology
+  (2026-09-08); not yet built, and `bg-cli`'s role relative to it is still open (see
+  [the scratchpad](../scratchpad/state.md)).
 - Health, damage on loss, victory.
 - Enough frontend to play a full Run by hand, enough logging to read one back.
 

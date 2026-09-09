@@ -89,9 +89,11 @@ Fixed 2026-09-06, and found the same way — a quote that would not verify again
 the archive. A message sent while Claude is mid-turn is *absorbed* into the running
 turn rather than queued behind it, so it never becomes a `user` line at all. It
 survives only in the queue bookkeeping (`queue-operation`), which the exporter
-skipped wholesale as noise. The design change behind
-[ADR 0010](../adr/0010-the-clock-is-a-beat-counter.md) arrived this way and would
-have left no trace.
+skipped wholesale as noise. The design change this refers to — "let's make canonical
+that a 'beat' is a time-step" — arrived this way and would have left no trace. It landed
+in [ADR 0009](../adr/0009-the-party-is-left-anchored.md) rather than in a separate ADR
+0010, which was never actually written; this link pointed at that nonexistent file until
+corrected during the 2026-09-08 docs overhaul.
 
 The script now recovers it from the `remove` record carrying
 `reason: "absorbed_mid_turn"` (`queued_messages_recovered` in the front matter).

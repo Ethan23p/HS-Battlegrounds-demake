@@ -11,8 +11,9 @@ inside it.
 
 ## Consequences
 
-- The shared Pool becomes a two-party question. Pool scarcity is a real strategic layer
-  of Battlegrounds, and we lose most of it for now.
+- The shared Pool becomes a two-party question. Claude's read at the time: Pool scarcity
+  is a real strategic layer of Battlegrounds and most of it is lost here — an assessment,
+  not a verified fact, and moot now that the model itself is superseded.
 - No matchmaking, elimination, ghosts, or placement.
 - Cheap to revisit: Seats are indexed, not named `player`/`opponent`, so raising the
   count is a setup change, not a rewrite.
