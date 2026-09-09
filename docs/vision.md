@@ -47,8 +47,8 @@ Anything beyond that is Claude's reading and lives in the scratchpad.
 `0001` and `0005` are shorter snapshots of those same two sessions and are never cited.
 `0006` is the session that produced this document.
 
-Every quotation here is checked against its transcript by
-[`scripts/check_provenance.py`](../scripts/check_provenance.py).
+Quotations are verbatim. Where a spoken turn contains a mistranscription, it is quoted as
+it stands rather than repaired — a garbled quote is a better record than a smoothed one.
 
 ---
 
