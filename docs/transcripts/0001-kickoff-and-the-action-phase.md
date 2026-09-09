@@ -4,18 +4,15 @@ export_date: 2026-09-06T05:15:11Z
 source_path: /root/.claude/projects/-home-user-HS-Battlegrounds-demake/7e14bc36-1a5c-562e-80d1-d6857cb7d317.jsonl
 include_tools: false
 message_counts:
-  lines_total: 881
-  user_turns: 17
-  assistant_turns: 302
-  user_lines_filtered_as_noise: 148
-  tool_calls_omitted: 140
-  tool_results_omitted: 139
+  user_turns: 14
+  assistant_turns: 14
   answers_recovered: 1
-  thinking_blocks_omitted: 82
-  parse_errors: 0
-  unknown_block_shapes: 0
+merged_from:
+  - docs/transcripts/0001-project-kickoff.md
+  - docs/transcripts/0002-vocabulary-and-action-phase.md
+merge_date: 2026-09-09
+merge_notes: none
 ---
-
 # Transcript: 7e14bc36-1a5c-562e-80d1-d6857cb7d317
 
 ## User

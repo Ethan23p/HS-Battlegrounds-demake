@@ -101,19 +101,27 @@ fn a_dying_unit_still_lands_its_blow() {
     assert_eq!(r.outcome, Outcome::OpposingWins);
     assert_eq!(
         r.final_board.opposing.get(0).unwrap().health,
-        4,
-        "the 1/1 died, but its blow still landed"
+        3,
+        "the 1/1 died, but both transactions of its Beat still resolved: it \
+         answered the brute's attack, and its own attack landed too"
     );
 }
 
 #[test]
-fn the_tougher_unit_survives_the_exchange() {
+fn a_beat_holds_two_transactions_not_one_trade() {
+    // Battlegrounds leaves a 3/4 that trades with a 3/3 at 1 health -- but only
+    // because the 3/3 died before its own attack ran. That is pre-emption, and
+    // pre-emption is what putting both attacks in one Beat removes.
+    //
+    // So both transactions resolve: the stout attacks (and is answered), the 3/3
+    // attacks (and is answered). Each takes 6. An attack is a transaction with a
+    // direction, not a symmetrical trade, and two of them are not one of them.
     let r = resolve(
         board_of(vec![plain("stout", 3, 4)], vec![plain("x", 3, 3)]),
         &mut rng(),
     );
-    assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.final_board.player.get(0).unwrap().health, 1);
+    assert_eq!(r.outcome, Outcome::Draw);
+    assert!(r.final_board.player.is_empty() && r.final_board.opposing.is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +148,11 @@ fn passes_repeat_until_a_party_is_empty() {
         &mut rng(),
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.passes, 3, "three blows to fell a 3-health Unit");
+    assert_eq!(
+        r.passes, 2,
+        "two blows a Beat -- the chip's attack and its answer to the x's -- so a \
+         3-health Unit falls in two Passes, not three"
+    );
 }
 
 #[test]
@@ -318,6 +330,273 @@ fn a_zero_attack_unit_strikes_nobody() {
 }
 
 // ---------------------------------------------------------------------------
+// An attack is an exchange
+// ---------------------------------------------------------------------------
+//
+// A 1v1 hides all of this: both Units are their side's Slot-1 attacker, so the
+// answering blow is indistinguishable from the other side's attack. Every scenario
+// here puts the answering Unit somewhere its own side's clock has not reached.
+
+/// A Party of three 1/1s, so whatever the attacker draws, it draws a 1/1 that is
+/// not the Slot-1 attacker two times out of three -- and Taunt pins it when it
+/// matters.
+#[test]
+fn a_defender_answers_the_blow_it_was_struck_by() {
+    // The brute draws the Taunt holder in Slot 2, which never attacks: Beat 1
+    // resolves Slot 1. Under a one-way attack the brute would take 1 -- from the
+    // opposing Slot-1 Unit alone. It takes 2, because the Unit it struck struck
+    // back.
+    let r = resolve(
+        board_of(
+            vec![plain("brute", 9, 9)],
+            vec![plain("front", 1, 9), u("bait", 1, 9, &[Keyword::Taunt])],
+        ),
+        &mut rng(),
+    );
+    let brute = r.final_board.player.get(0).expect("brute lives");
+    assert_eq!(
+        brute.health, 7,
+        "1 from the Slot-1 attacker, 1 answered by the Taunt holder it struck"
+    );
+}
+
+#[test]
+fn answering_is_not_attacking_so_it_draws_no_target_of_its_own() {
+    // The Taunt holder in Slot 2 answers the brute in Beat 1, but does not attack
+    // in it: only Slot 1 acts in Beat 1. Its own attack waits for Beat 2, which is
+    // the clock doing its job -- an answer is not a turn.
+    let r = resolve(
+        board_of(
+            vec![plain("brute", 1, 99)],
+            vec![plain("front", 1, 99), u("bait", 5, 99, &[Keyword::Taunt])],
+        ),
+        &mut rng(),
+    );
+    let beat_1 = &r.log[..r
+        .log
+        .iter()
+        .position(|e| matches!(e, Event::BeatBegan { beat: 2, .. }))
+        .expect("Beat 2 happens")];
+
+    assert_eq!(
+        count_events(beat_1, |e| matches!(
+            e,
+            Event::Struck {
+                by: Side::Opposing,
+                attacker_slot: 2,
+                ..
+            }
+        )),
+        0,
+        "Slot 2 does not attack in Beat 1"
+    );
+    assert_eq!(
+        count_events(beat_1, |e| matches!(
+            e,
+            Event::StruckBack {
+                by: Side::Opposing,
+                slot: 2,
+                ..
+            }
+        )),
+        1,
+        "but it answers the blow it took in Beat 1"
+    );
+    assert!(
+        r.log.iter().any(|e| matches!(
+            e,
+            Event::Struck {
+                by: Side::Opposing,
+                attacker_slot: 2,
+                ..
+            }
+        )),
+        "and attacks for itself once the clock reaches Slot 2"
+    );
+}
+
+#[test]
+fn a_zero_attack_defender_answers_with_nothing() {
+    let r = resolve(
+        board_of(
+            vec![plain("brute", 9, 9)],
+            vec![plain("front", 1, 9), u("wall", 0, 9, &[Keyword::Taunt])],
+        ),
+        &mut rng(),
+    );
+    assert_eq!(
+        r.final_board.player.get(0).expect("brute lives").health,
+        8,
+        "1 from the Slot-1 attacker; the wall it struck has nothing to answer with"
+    );
+    assert_eq!(
+        count_events(&r.log, |e| matches!(
+            e,
+            Event::StruckBack {
+                by: Side::Opposing,
+                ..
+            }
+        )),
+        0,
+        "the wall answers nothing; the brute still answers the Unit that attacked it"
+    );
+}
+
+#[test]
+fn poisonous_kills_the_unit_that_attacked_into_it() {
+    // Poisonous is mostly a defensive keyword in Battlegrounds, and this is why:
+    // the venomous Unit never has to swing to take something down with it.
+    let r = resolve(
+        board_of(
+            vec![plain("brute", 1, 99)],
+            vec![
+                plain("front", 1, 99),
+                u("venom", 1, 99, &[Keyword::Taunt, Keyword::Poisonous]),
+            ],
+        ),
+        &mut rng(),
+    );
+    assert!(
+        r.log.iter().any(|e| matches!(
+            e,
+            Event::Died {
+                side: Side::Player,
+                poisoned: true,
+                ..
+            }
+        )),
+        "the brute struck the poisonous Taunt holder and died of the answer"
+    );
+}
+
+#[test]
+fn a_shield_spends_itself_on_the_first_blow_and_the_second_lands() {
+    // The paladin is struck twice in one Beat: once by the Slot-1 attacker, once
+    // as the answer from the Taunt holder it chose. One blow, one shield --
+    // Battlegrounds' own rule, needing no help from ours. Pooling the Beat's damage
+    // and absorbing all of it would be an invention, and one only a pooled
+    // implementation would ever need.
+    let r = resolve(
+        board_of(
+            vec![u("paladin", 9, 1, &[Keyword::DivineShield])],
+            vec![plain("front", 9, 99), u("bait", 9, 99, &[Keyword::Taunt])],
+        ),
+        &mut rng(),
+    );
+    assert_eq!(
+        count_events(&r.log, |e| matches!(
+            e,
+            Event::ShieldAbsorbed {
+                side: Side::Player,
+                ..
+            }
+        )),
+        1,
+        "one shield, spent once"
+    );
+    assert_eq!(r.outcome, Outcome::OpposingWins, "the second blow landed");
+}
+
+// ---------------------------------------------------------------------------
+// Deaths resolve after the attack that caused them
+// ---------------------------------------------------------------------------
+//
+// An *instance* is the indivisible step: both sides declare, every blow is
+// answered, all of it lands together, and then the dead are removed. A Beat is one
+// instance, or two when Windfury is involved -- and the dead do not wait for the
+// second.
+
+#[test]
+fn a_unit_killed_in_its_first_swing_does_not_swing_again() {
+    // Windfury swings twice in a Beat; a corpse swings no times. The Unit dies to
+    // the answer its own attack drew, and instance 1 finds nobody standing there.
+    let r = resolve(
+        board_of(
+            vec![u("gusty", 1, 2, &[Keyword::Windfury])],
+            vec![plain("wall", 5, 9)],
+        ),
+        &mut rng(),
+    );
+    assert_eq!(r.outcome, Outcome::OpposingWins);
+    assert_eq!(
+        count_events(&r.log, |e| matches!(
+            e,
+            Event::Struck {
+                by: Side::Player,
+                ..
+            }
+        )),
+        1,
+        "one swing, not two: it was dead before the second"
+    );
+}
+
+#[test]
+fn a_corpse_is_gone_before_the_second_swing_draws() {
+    // Two 1-health Units, so whichever the first swing draws, it dies. The second
+    // swing must then draw the other: holding the corpse to the end of the Beat
+    // would let it be struck twice, which is the invisible bookkeeping the Beat
+    // exists to delete.
+    let r = resolve(
+        board_of(
+            vec![u("gusty", 5, 9, &[Keyword::Windfury])],
+            vec![plain("p", 0, 1), plain("q", 0, 1)],
+        ),
+        &mut rng(),
+    );
+    let swings: Vec<(u32, u32)> = r
+        .log
+        .iter()
+        .filter_map(|e| match e {
+            Event::Struck {
+                by: Side::Player,
+                target_slot,
+                instance,
+                ..
+            } => Some((*instance, *target_slot)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(swings.len(), 2, "Windfury swung twice");
+    assert_ne!(
+        swings[0].1, swings[1].1,
+        "the second swing cannot draw a Slot whose Unit is already gone"
+    );
+
+    let first_death = r
+        .log
+        .iter()
+        .position(|e| {
+            matches!(
+                e,
+                Event::Died {
+                    side: Side::Opposing,
+                    ..
+                }
+            )
+        })
+        .expect("something died");
+    let second_swing = r
+        .log
+        .iter()
+        .position(|e| {
+            matches!(
+                e,
+                Event::Struck {
+                    by: Side::Player,
+                    instance: 1,
+                    ..
+                }
+            )
+        })
+        .expect("Windfury swung twice");
+    assert!(
+        first_death < second_swing,
+        "the dead are removed before the next swing is drawn, not at the Beat's end"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Keywords
 // ---------------------------------------------------------------------------
 
@@ -337,10 +616,12 @@ fn windfury_acts_twice_in_its_beat() {
 
 #[test]
 fn a_divine_shield_absorbs_one_blow_entirely() {
+    // The shielded Unit has no attack, so it starts no transaction of its own and
+    // meets exactly one blow a Beat. The shield eats the first one whole.
     let r = resolve(
         board_of(
             vec![plain("hammer", 9, 9)],
-            vec![u("shielded", 1, 1, &[Keyword::DivineShield])],
+            vec![u("shielded", 0, 1, &[Keyword::DivineShield])],
         ),
         &mut rng(),
     );
@@ -398,7 +679,7 @@ fn a_divine_shield_stops_poison_because_no_damage_lands() {
     let r = resolve(
         board_of(
             vec![u("venom", 1, 9, &[Keyword::Poisonous])],
-            vec![u("shielded", 1, 4, &[Keyword::DivineShield])],
+            vec![u("shielded", 0, 4, &[Keyword::DivineShield])],
         ),
         &mut rng(),
     );

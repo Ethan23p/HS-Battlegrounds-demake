@@ -1,6 +1,12 @@
 ---
-status: accepted
+status: accepted, corrected in part by ADR 0010
 ---
+
+> **Corrected by [ADR 0010](0010-an-attack-is-a-transaction.md) on two points.** The table
+> below omits what an attack damages, and the engine built from it damaged only the
+> target — Battlegrounds damages both. And "removal is deferred to the end of the Beat"
+> was never a decision: deaths resolve immediately after the attack that caused them.
+> Everything else here stands.
 
 # Targeting is random; simultaneity is the only delta from Battlegrounds' attack order
 
@@ -18,6 +24,7 @@ and an Action Phase with no randomness at all. This ADR corrects the record. Sid
 | Taunt | While a Taunt Unit is in the opposing Party, all attacks must target it | **Unchanged** |
 | Windfury | Acts twice on its turn, choosing a target each time | Acts twice in its Beat, choosing a target each time — **unchanged** |
 | Attacking a Player | Never happens — that is Hearthstone, not Battlegrounds | **Unchanged** |
+| An attack | Damages both Units — the target answers with its own attack | Unchanged — see [ADR 0010](0010-an-attack-is-a-transaction.md) |
 | Damage / death | Sequential — the surviving attacker is unambiguous | Simultaneous; **the attacker dies last** |
 
 Only row one is a delta. Everything else is the default rule doing its job: undeltered,
@@ -53,8 +60,10 @@ specifies the clock those Beats run on, and when a Party closes ranks around its
 A Beat proceeds attack by attack (Windfury's second attack is a second instance). Within
 an instance, both sides' current attacker strike at once: **each draws its own target**
 from the opposing Party's living Units, respecting Taunt. Damage and Poisonous apply, and
-removal is deferred to the end of the Beat — so a Unit fatally wounded in instance 0 is
-still a valid attacker, but not a valid *target*, for instance 1. An attack that finds
+the instance's dead are then removed — corrected by
+[ADR 0010](0010-an-attack-is-a-transaction.md), which found "removal is deferred to the end
+of the Beat" here to be an invention, and one that contradicted the reason Ethan gave for
+the answer it claimed to follow from. An attack that finds
 nothing left standing does not land: no Unit ever attacks a Player.
 
 **Attacker dies last:** when a Beat's deaths are applied, any Unit that died *without*
