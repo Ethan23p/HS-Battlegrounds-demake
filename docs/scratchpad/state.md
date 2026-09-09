@@ -15,8 +15,8 @@ the rules this directory follows.
   as in Battlegrounds — every attack draws its own target
   ([ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md)). An
   attack damages **both** Units: the target answers with its own attack in the same
-  instant, and the indivisible step is the *instance*, not the Beat
-  ([ADR 0010](../adr/0010-an-attack-is-an-exchange.md)). Two things about a fight are
+  motion, and a Beat holds **two transactions** — one attack from each side, neither
+  pre-empting the other ([ADR 0010](../adr/0010-an-attack-is-a-transaction.md)). Two things about a fight are
   actually ours: both sides act in the same Beat instead of alternating, and the attacker
   dies last on a mutual trade. Nothing ever attacks a Player — that's Hearthstone, not
   Battlegrounds. `rng` already draws from `Domain::Combat`, ahead of Effects needing it.
@@ -48,16 +48,10 @@ stage. Unit data files get written alongside.
    [vision.md's concept section](../design/vision.md#the-concept). Whether `bg-cli`
    becomes a debug/headless harness, an API surface the TypeScript frontend talks to, or
    gets deleted outright is undecided. Doesn't block v0.1 — still headless-first.
-2. **A Divine Shield absorbs the whole instant.** Chosen in
-   [ADR 0010](../adr/0010-an-attack-is-an-exchange.md) because it is order-independent,
-   which is the delta applied to its own consequences — but it is the *generous* reading,
-   and "absorbs the largest blow, the rest land" is equally order-independent and
-   stingier. Nothing else depends on the choice; one `land()` branch switches it. Worth a
-   sentence from Ethan when the Unit set is big enough for the difference to be felt.
-3. **"Pass", "instance" and "clash" are provisional** (see `CONTEXT.md`). Ethan's phrase
-   for a Pass was "a round of beats"; *Round* was already taken. *Instance* and *clash*
-   are Claude's, coined in ADR 0010. Rename freely if better words turn up.
-4. **The Action Phase must not mutate the Party of record.** `resolve` takes the Board by
+2. **"Pass" and "instance" are provisional** (see `CONTEXT.md`). Ethan's phrase
+   for a Pass was "a round of beats"; *Round* was already taken. *Instance* is Claude's.
+   *Transaction* and *step* are Ethan's own. Rename freely if better words turn up.
+3. **The Action Phase must not mutate the Party of record.** `resolve` takes the Board by
    value, so Rust already prevents a caller from seeing the fight's damage in its own
    Party — but nothing has tested it, because no Prep Phase exists to hold a Party
    between Rounds. Battlegrounds resets; so should we. Revisit when v0.2 builds the

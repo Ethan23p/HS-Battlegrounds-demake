@@ -2,7 +2,7 @@
 status: accepted
 ---
 
-# An attack is an exchange, and simultaneity is a principle rather than a mechanism
+# An attack is a transaction, and simultaneity is a principle rather than a mechanism
 
 Two rules the engine was enforcing had never been decided. One was a mechanic that
 quietly went missing; the other was a mechanic that quietly appeared. Both are corrected
@@ -22,7 +22,7 @@ are mutual. The delta's job is to remove the one place ordering does decide some
 who swings first — and to leave everything else exactly where Battlegrounds left it.
 Everything below is Claude's engineering of that principle, not further instruction.
 
-## What went missing: the exchange
+## What went missing: the answering blow
 
 **In Battlegrounds an attack damages both Units.** The attacker deals its attack to its
 target, and the target deals its attack back, in the same instant. The engine only ever
@@ -69,50 +69,81 @@ mean the thing he had rejected. His correction — *"I never said that deaths re
 the end of beats"* ([0006](../transcripts/0006-the-exchange-and-the-instance.md)) — is
 right about the decision, whatever the words looked like.
 
-## The mechanism: the instance
+## The mechanism: steps in a Beat
 
-The indivisible step is the **instance**, not the Beat. A Beat is one instance, or two
-where Windfury is involved. Within one instance:
+Battlegrounds resolves combat as a sequence of **steps** — atomic units of resolution. A
+step is an attack, an effect, a trigger, a summon. Combat is: run the next step, fully,
+then the next. Ethan's delta does not touch what a step is or how one resolves:
 
-1. Both sides' Slot-*n* Unit declares an attack against the Board as the instance found
-   it, drawing its own target. Neither side's draw can see the other's blow.
-2. Every declared attack becomes a **clash** between two Units.
-3. Each Unit in a clash deals its attack to the other, and all of an instance's damage
-   lands at once.
-4. The instance's dead are removed, a Unit that attacked after every Unit that didn't.
+> instead of in battlegrounds when Opposing unit attacks resolves. Friendly unit attacks
+> resolves. taking those steps which go right after one another and conceptually putting
+> them in the same beat to remove the ordering consequence.
+>
+> — [transcript 0006](../transcripts/0006-the-exchange-and-the-instance.md)
 
-Deaths therefore resolve after the attack that caused them, exactly as in Battlegrounds,
-and a Unit killed in instance 0 has no instance 1 to act in. "End of the Beat" stops being
-a rule the engine has at all.
+A Beat is a **container for steps Battlegrounds would have run consecutively**, and the
+point of the container is that nothing inside it can pre-empt anything else inside it.
+That framing reaches past attacks: "two Deathrattles fire in the same Beat" is the
+identical question, which is why it is worth stating at this level rather than as a rule
+about damage.
 
-## Two tie-breaks simultaneity forces, which Battlegrounds cannot settle
+For the Action Phase, one Beat holds one attack step from each side:
 
-The default rule says: undeltered, it works however Battlegrounds works. These are the
-two places it has nothing to say, because the situation cannot arise there. In both, the
-rule is chosen so that no ordering could change the outcome — which is the delta itself,
-applied to its own consequences.
+1. Both sides' Slot-*n* Unit draws its target, against the Board as the instance found it.
+   Drawing before either attack resolves is the whole of what stops one from pre-empting
+   the other.
+2. Each attack resolves, fully, as Battlegrounds resolves an attack — including the
+   answering blow.
+3. The instance's dead are removed, a Unit that attacked after every Unit that didn't.
 
-**A pair meets once per instance, however many of them swung.** When two Units choose
-each other, Battlegrounds would resolve two separate attacks — but only ever gets to when
-the first one failed to kill the second attacker. Its answer for a 3/4 trading with a 3/3
-is the same whichever side swings first: the 3/4 lives at 1. That outcome does not turn
-on ordering, so the delta has no business changing it. Counting the pair twice would deal
-6 damage where Battlegrounds deals 3 — a rule change smuggled in as an implementation
-detail. Collapsing the pair keeps every outcome Battlegrounds was already unambiguous
-about and changes only the ones that turned on who swung first.
+An *instance* is one pass through those three; a Beat is one instance, or two where
+Windfury is involved. Deaths therefore resolve after the attacks that caused them and
+before the next instance, so a Unit killed in instance 0 has no instance 1 to act in.
+"End of the Beat" stops being a rule the engine has at all.
 
-**A Divine Shield absorbs the instant, not one blow of it.** A Unit can now be struck by
-one enemy and answer another in the same moment; nothing in Battlegrounds damages a Unit
-twice at the same instant, so it never has to rule on which blow a shield eats. Absorbing
-one would mean absorbing whichever an implementation happened to apply first, and the
-blows may differ in size — an ordering advantage, in the one Action Phase built to have
-none.
+## An attack is a transaction, not a trade
 
-The second is the more debatable of the two, and it is the more generous reading: a
-shield facing two blows at once now saves its holder from both. The alternative that
-preserves order-independence — the shield absorbs the *largest* blow and the rest land —
-is defensible, and cheap to switch to. Nothing else in the engine depends on which is
-chosen.
+This ADR originally recorded the opposite, and the correction is the more instructive
+half of it. Two Units that choose each other in the same Beat were collapsed into a
+single symmetrical "clash" that resolved once. The argument was that Battlegrounds leaves
+a 3/4 trading with a 3/3 at 1 health whichever side swings first, so the outcome does not
+turn on ordering and the delta should not change it.
+
+The argument is wrong, and Ethan named why:
+
+> in battlegrounds, there was effectively no such thing as a trade. One unit attacking the
+> other, and then the other unit attacking them could play out asymmetrically because it's
+> not a trade. It's a transaction.
+>
+> — [transcript 0006](../transcripts/0006-the-exchange-and-the-instance.md)
+
+An attack has a **direction**: this Unit swings at that one, and the one struck answers.
+Two attacks are two transactions, each with its own attacker. The reason the 3/4 wins in
+Battlegrounds is that the 3/3 died before its own attack ran — which is *pre-emption*. It
+happens to produce the same number whichever side goes first, so it looks
+order-independent, but the mechanism is ordering, and removing pre-emption is precisely
+the delta. Protecting that outcome reinstated the thing the delta deletes, and dressed it
+up as fidelity.
+
+Ethan diagnosed the collapse as a programmer's reflex — *"a programmer bias of, like, one
+action, one outcome"* — against a model that is meant to be a simulation, *"where it means
+something for two actions to be simultaneous."* Worth recording as a failure mode and not
+just a wrong answer: the symmetric vocabulary came first (*trade*, *meeting*, *clash*),
+and the symmetric mechanic followed from it. Naming a thing wrongly is how it gets built
+wrongly.
+
+So both attacks resolve. A 3/4 and a 3/3 destroy each other, and surviving a trade takes
+more health than *twice* their attack — a real consequence, and the intended one.
+
+## What this cost, and what it bought back
+
+Collapsing the pair was not the only invention it forced. Pooling a Beat's damage to
+resolve it as one event raised a question nothing else asks: what a Divine Shield absorbs
+when two blows land at the same instant. This ADR answered it — the shield absorbs the
+instant — and that answer is now gone with the pooling that needed it. One blow, one
+shield, exactly as in Battlegrounds. **The invention only ever existed to serve the
+implementation that invented it**, which is a useful smell: a rule Battlegrounds has no
+opinion on is more often a sign of an over-built mechanism than of a genuine gap.
 
 ## What this does not change
 

@@ -101,19 +101,27 @@ fn a_dying_unit_still_lands_its_blow() {
     assert_eq!(r.outcome, Outcome::OpposingWins);
     assert_eq!(
         r.final_board.opposing.get(0).unwrap().health,
-        4,
-        "the 1/1 died, but its blow still landed"
+        3,
+        "the 1/1 died, but both transactions of its Beat still resolved: it \
+         answered the brute's attack, and its own attack landed too"
     );
 }
 
 #[test]
-fn the_tougher_unit_survives_the_exchange() {
+fn a_beat_holds_two_transactions_not_one_trade() {
+    // Battlegrounds leaves a 3/4 that trades with a 3/3 at 1 health -- but only
+    // because the 3/3 died before its own attack ran. That is pre-emption, and
+    // pre-emption is what putting both attacks in one Beat removes.
+    //
+    // So both transactions resolve: the stout attacks (and is answered), the 3/3
+    // attacks (and is answered). Each takes 6. An attack is a transaction with a
+    // direction, not a symmetrical trade, and two of them are not one of them.
     let r = resolve(
         board_of(vec![plain("stout", 3, 4)], vec![plain("x", 3, 3)]),
         &mut rng(),
     );
-    assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.final_board.player.get(0).unwrap().health, 1);
+    assert_eq!(r.outcome, Outcome::Draw);
+    assert!(r.final_board.player.is_empty() && r.final_board.opposing.is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +148,11 @@ fn passes_repeat_until_a_party_is_empty() {
         &mut rng(),
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.passes, 3, "three blows to fell a 3-health Unit");
+    assert_eq!(
+        r.passes, 2,
+        "two blows a Beat -- the chip's attack and its answer to the x's -- so a \
+         3-health Unit falls in two Passes, not three"
+    );
 }
 
 #[test]
@@ -404,30 +416,6 @@ fn answering_is_not_attacking_so_it_draws_no_target_of_its_own() {
 }
 
 #[test]
-fn two_units_that_chose_each_other_meet_once() {
-    // The delta removes the advantage of swinging first; it does not double the
-    // damage of a Beat. Battlegrounds leaves a 3/4 that trades with a 3/3 at 1
-    // health whichever side swings first, so this outcome is not ours to change --
-    // it is the same assertion as `the_tougher_unit_survives_the_exchange`, made
-    // explicit about why.
-    let r = resolve(
-        board_of(vec![plain("stout", 3, 4)], vec![plain("x", 3, 3)]),
-        &mut rng(),
-    );
-    assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(
-        r.final_board.player.get(0).expect("stout lives").health,
-        1,
-        "one meeting, not two: 3 damage, not 6"
-    );
-    assert_eq!(
-        count_events(&r.log, |e| matches!(e, Event::StruckBack { .. })),
-        0,
-        "both sides attacked, so neither is merely answering"
-    );
-}
-
-#[test]
 fn a_zero_attack_defender_answers_with_nothing() {
     let r = resolve(
         board_of(
@@ -482,27 +470,18 @@ fn poisonous_kills_the_unit_that_attacked_into_it() {
 }
 
 #[test]
-fn a_divine_shield_absorbs_the_instant_not_one_blow_of_it() {
-    // The paladin must strike the Taunt holder; the opposing Slot-1 Unit strikes
-    // the paladin. So in one instant the paladin takes an attack from one Unit and
-    // an answer from another -- something Battlegrounds never has to rule on,
-    // because nothing there damages a Unit twice at the same moment.
-    //
-    // The shield eats the instant. Absorbing only one of the two blows would mean
-    // absorbing whichever an implementation applied first, which is exactly the
-    // ordering advantage the delta removes.
+fn a_shield_spends_itself_on_the_first_blow_and_the_second_lands() {
+    // The paladin is struck twice in one Beat: once by the Slot-1 attacker, once
+    // as the answer from the Taunt holder it chose. One blow, one shield --
+    // Battlegrounds' own rule, needing no help from ours. Pooling the Beat's damage
+    // and absorbing all of it would be an invention, and one only a pooled
+    // implementation would ever need.
     let r = resolve(
         board_of(
             vec![u("paladin", 9, 1, &[Keyword::DivineShield])],
-            vec![plain("front", 9, 9), u("bait", 9, 9, &[Keyword::Taunt])],
+            vec![plain("front", 9, 99), u("bait", 9, 99, &[Keyword::Taunt])],
         ),
         &mut rng(),
-    );
-    assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(
-        r.final_board.player.get(0).expect("paladin lives").health,
-        1,
-        "a 1-health Unit survives two simultaneous 9s on one shield"
     );
     assert_eq!(
         count_events(&r.log, |e| matches!(
@@ -513,8 +492,9 @@ fn a_divine_shield_absorbs_the_instant_not_one_blow_of_it() {
             }
         )),
         1,
-        "one shield, one instant"
+        "one shield, spent once"
     );
+    assert_eq!(r.outcome, Outcome::OpposingWins, "the second blow landed");
 }
 
 // ---------------------------------------------------------------------------
@@ -636,10 +616,12 @@ fn windfury_acts_twice_in_its_beat() {
 
 #[test]
 fn a_divine_shield_absorbs_one_blow_entirely() {
+    // The shielded Unit has no attack, so it starts no transaction of its own and
+    // meets exactly one blow a Beat. The shield eats the first one whole.
     let r = resolve(
         board_of(
             vec![plain("hammer", 9, 9)],
-            vec![u("shielded", 1, 1, &[Keyword::DivineShield])],
+            vec![u("shielded", 0, 1, &[Keyword::DivineShield])],
         ),
         &mut rng(),
     );
@@ -697,7 +679,7 @@ fn a_divine_shield_stops_poison_because_no_damage_lands() {
     let r = resolve(
         board_of(
             vec![u("venom", 1, 9, &[Keyword::Poisonous])],
-            vec![u("shielded", 1, 4, &[Keyword::DivineShield])],
+            vec![u("shielded", 0, 4, &[Keyword::DivineShield])],
         ),
         &mut rng(),
     );

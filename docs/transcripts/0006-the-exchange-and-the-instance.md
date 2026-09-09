@@ -1,18 +1,18 @@
 ---
 session_id: 5ab60e7d-39c4-58d3-b35a-8ea9bd785988
-export_date: 2026-09-09T14:44:49Z
+export_date: 2026-09-09T15:48:47Z
 source_path: /root/.claude/projects/-home-user-HS-Battlegrounds-demake/5ab60e7d-39c4-58d3-b35a-8ea9bd785988.jsonl
 include_tools: false
 message_counts:
-  lines_total: 268
-  user_turns: 2
-  assistant_turns: 94
-  user_lines_filtered_as_noise: 46
-  tool_calls_omitted: 47
-  tool_results_omitted: 46
+  lines_total: 348
+  user_turns: 4
+  assistant_turns: 118
+  user_lines_filtered_as_noise: 58
+  tool_calls_omitted: 59
+  tool_results_omitted: 58
   answers_recovered: 0
   queued_messages_recovered: 0
-  thinking_blocks_omitted: 29
+  thinking_blocks_omitted: 36
   parse_errors: 0
   unknown_block_shapes: 0
 ---
@@ -139,3 +139,98 @@ Now the pointers from ADR 0008, the vocabulary, the vision, and the scratchpad:
 Now the scratchpad — the open questions this closes:
 
 The ADR cites this conversation, so the transcript needs to exist:
+
+Pushed to `claude/keywords-concept-implement-mv67ov`. No PR — say the word if you want one.
+
+## What your framing changed
+
+"Ordering doesn't grant any advantage" is a *principle*, and it's much narrower than the mechanism the ADRs had written down. Most Battlegrounds outcomes are already order-independent, because its attacks damage both Units. The delta only has to delete the one place ordering decides something — who swings first.
+
+That reading caught my own overreach mid-build. My first cut restored the exchange naively, and four tests broke, including a 3/4 trading with a 3/3. Battlegrounds leaves the 3/4 at 1 health *whichever side swings first* — an outcome that doesn't turn on ordering, so my delta had no business touching it. I'd been letting a mutually-targeting pair exchange twice: 6 damage where Battlegrounds deals 3, a rule change smuggled in as an implementation detail. Collapsing the pair into one **clash** fixed it, and all four tests passed untouched. That's the evidence it's right — the suite was already encoding faithful outcomes.
+
+**On deaths:** you're right, and the record is sharper than either of us put it. You *did* answer "11.2 end of beat" — but the question was "end of the Beat **or end of a full sweep**," asked when a Beat was still one exchange of the whole Board, and your reason was *against* corpses lingering: "end-of-sweep means corpses keep fighting, which is exactly the invisible bookkeeping we're removing." When ADR 0008 redefined a Beat as "Slot n acts, twice with Windfury," the phrase you'd agreed to silently came to mean the thing you'd rejected — a Unit killed by a Windfury holder's first swing was still standing for the second. Same drift as ADR 0003, one level subtler: nothing was misattributed, the words just stopped meaning what they meant.
+
+The indivisible step is now the **instance**, not the Beat. "End of the Beat" isn't a rule the engine has any more.
+
+## The one that got away
+
+The exchange was missing entirely — attacks damaged only the target. Not a decision anyone made; it fell out when ADR 0008 removed slot-vs-slot pairing, and **no test caught it because every scenario was effectively 1v1**, where both Units are their side's Slot-1 attacker and an answering blow is indistinguishable from the other side's attack. That's drift by omission, which I now think is the more dangerous kind: nothing was written down to argue with. All six new tests deliberately put the answering Unit where its own side's clock hasn't reached.
+
+It re-priced every keyword — Poisonous and Taunt were purely offensive, Divine Shield half a keyword, Windfury double damage at no added risk. All five keywords answer to Battlegrounds now, unmodified.
+
+## Two calls I made and want visible
+
+Simultaneity creates situations Battlegrounds never has to rule on. I picked the order-independent answer both times — the delta applied to its own consequences:
+
+1. **A pair meets once per instance**, however many of them swung.
+2. **A Divine Shield absorbs the instant, not one blow of it.** This is the generous reading. "Absorbs the largest blow, the rest land" is equally order-independent and stingier; it's one branch in `land()`. Logged in the scratchpad as open — worth your call once there's enough content to feel the difference.
+
+Also settled by looking things up rather than asking you: Reborn's return stats (the engine was already right), the keyword set staying at five, and ADR 0008's two flagged inventions.
+
+**Next up is Abilities** — Triggers, Effects through Selectors, cascading Deathrattles. One rule from this work carries straight into it: a Unit acts when the clock reaches its Slot, whatever put it there, so Deathrattle summons need no special case.
+
+## User
+
+That is a relief. I feel like we're at a much better level of understanding now. In fact, it makes me want to pivot because last session, Claude and I tried to rewrite the documentation, but we didn't have this, uh, sort of clarifying moment. So I think it would be a good move to, uh, do it now. I want to do something that I think is a bit painful for Claude, but, uh, to delete all of the existing internal documentation and re drive it. I think that we can Do a much better job because I have, uh, sharpened my, uh, vision and wording of it over the course of our work so far. And because of... because we can, um, embed this understanding in the documentation, hopefully, as well, uh, which is to say that, um, I'm speaking quite precisely about the game mechanics. Um, uh, My modifications are principles.
+
+To say that these modifications are principles is exactly exactly right, um, because I'm not trying to massively change the underlying model that battlegrounds uses. For example, simultaneous works a little bit different than how you've just described it. Because, uh, when I say this, I mean, um, in contrast to battlegrounds, battlegrounds does, um, uh, like, a, uh, does steps instead of beats, and steps are like atomic, um, actions. And, uh, so that means a step can be, like, an attack or an effect or a trigger or an action or whatever. Um, what I'm suggesting is not a massive change. It's... instead of in battlegrounds when Opposing unit attacks resolves. Friendly unit attacks resolves. taking those steps which go right after one another and conceptually putting them in the same beat to remove the ordering consequence.
+
+that's kind of a lot to throw at you so don't proceed with any work just respond and then we'll decide where to go from there
+
+## Claude
+
+That reframing lands, and it's better than mine. Let me say it back precisely, because it changes something I built.
+
+## What I now think you're saying
+
+Battlegrounds resolves combat as a sequence of **steps** — atomic units of resolution. A step is an attack, an effect, a trigger, a summon. Combat is just: run the next step, fully, then the next.
+
+Your delta doesn't touch what a step is or how one resolves. It says: the two steps that Battlegrounds runs back-to-back — opposing unit attacks, friendly unit attacks — go in the *same Beat*. That's it. A Beat is a container for steps that would otherwise have been consecutive, and the point of the container is that nothing inside it can preempt anything else inside it.
+
+That's much narrower than "resolve simultaneously" as I'd been reading it, and it generalizes past attacks in a way my version didn't — which matters, because Abilities are next and "two Deathrattles fire in the same Beat" is the identical question.
+
+I'd been treating simultaneity as a *resolution mechanism*: pool everything that happens in a moment, then apply it together. That's why I ended up inventing "a Divine Shield absorbs the instant" — pooling forced me to answer a question that only exists because I pooled. Under your model that question dissolves. Each step resolves atomically, exactly as Battlegrounds resolves it; a shield absorbs one step's damage, because a shield absorbs one step's damage. One fewer invention, and it was the invention I was least comfortable with.
+
+## Where it forks with what I just built
+
+Exactly one place, and it's the thing I argued myself into yesterday.
+
+Two Units in the same Beat that attack **each other**. Under your model there are two attack steps between that pair, and neither preempts the other, so both happen — each takes the other's attack twice. Under what I built, I collapsed them into one meeting.
+
+My argument for collapsing was: Battlegrounds leaves a 3/4 trading with a 3/3 at 1 health whichever side swings first, so the outcome doesn't turn on ordering and my delta shouldn't touch it. I now think that argument is subtly wrong. The reason the 3/4 wins in Battlegrounds is that the 3/3 *died before its step ran* — that's preemption. It happens to be symmetric, so it looks order-independent, but the mechanism is ordering, and removing preemption is precisely your delta. By protecting that outcome I reinstated the thing you're deleting, and dressed it up as fidelity.
+
+So I think you're right and I should undo the clash rule. But the cost is real and I don't want to swallow it silently:
+
+- A 3/4 no longer beats a 3/3 — they destroy each other. To survive a trade you need more health than *twice* their attack.
+- It doesn't bite uniformly. With random targeting across 8 Slots, two Slot-*n* Units picking each other is uncommon early. It becomes the norm in the endgame, when both sides are down to a Unit or two — which is exactly when fights are decided.
+- "Rock, paper, scissors is a real model" from the kickoff reads like an endorsement of this, not an objection to it.
+
+That's the one thing I'd want you to say yes or no to before I touch the engine again. Everything else I built survives your reframing — the exchange, deaths resolving per step rather than at the Beat's end, answering not being attacking.
+
+## On deleting the docs and re-deriving
+
+I'm for it, and not reluctantly. Two of the three corrections we've made in the last day were *caused* by documentation: ADR 0008 wrote simultaneity down as a mechanism, and the engine faithfully implemented the mechanism instead of the principle. "End of the Beat" survived a redefinition of "Beat" because it was written down as a phrase rather than as a reason. Docs that confidently state the wrong abstraction are worse than no docs, because the next instance implements them.
+
+Two things I'd want to hold onto, and I don't mean the prose:
+
+**The transcripts aren't documentation — they're evidence.** Everything else cites them, and they're the only thing in the repo that isn't Claude's paraphrase of you. I'd keep `docs/transcripts/` untouched and re-derive everything else from it.
+
+**A few hard-won facts should survive the fire**, restated rather than preserved. The ADRs' real value isn't their decisions, it's the record of *how* drift happens here — a principle written as a mechanism; a phrase outliving its definition; a delta by omission that no test caught because every scenario was 1v1. Whatever replaces them should carry that, or we'll rediscover it a third time.
+
+The engine itself is in good shape and shouldn't be part of the rewrite.
+
+So: my recommendation is that we settle the clash fork first, since the answer changes what the new docs would say about the central delta, then do the rewrite with the delta stated as a principle from the start. But if you'd rather start the docs now and let the engine follow, I'm happy to work that way — say which and I'll go.
+
+## User
+
+Yes. You are totally getting me. Um, although it's worth pointing out a, uh, subtle bias that I think slipped in there. Um, you say a three four no longer beats a three three. Um, they destroy each other. To survive a trade, you need more health than twice their attack. And then earlier, you said the reason the three four wins in battlegrounds is that the three predide before it stepran. Um, it happens to be symmetric, but it's actually not symmetric. I think what you're noticing is a bias towards, like, one step one action. It's a very like, programming type bias? and that's why it's worth resolving. The reason it feels a bit odd that a three four no longer beats a three three, they destroy each other. And to survive a trade, you need more health than twice their attack. The reason that feels weird is because in battlegrounds, there was effectively no such thing as a trade. One unit attacking the other, and then the other unit attacking them could play out asymmetrically because it's not a trade. It's a transaction. I think that makes sense. It's a, like, a a programmer bias of, like, one action, one outcome. But what we are aiming for here is, like, a more intuitive simulation type model. where it means something for two actions to be simultaneous. so I propose that we keep retaliation. We remove, um, any, like, pooling like the, uh, clash, and instead we treat it almost identically to battlegrounds. in which one side attacks, which implies retaliation. The other side attacks, which replies, I mean, implies retaliation. And those attacks resolve simultaneously because they happened simultaneously.
+
+## Claude
+
+That distinction is sharper than mine, and it names the bias correctly. I was calling it a "trade" and a "meeting" — symmetric words — and symmetric words made the dedupe feel principled. But an attack in Battlegrounds isn't symmetric: it has an attacker and a defender, and the retaliation is part of *that unit's* transaction. Two attacks are two transactions, each with its own direction, and collapsing them into one event was me reaching for "one action, one outcome" and calling it fidelity.
+
+Implementing your model now: two transactions, both declared against the same Board so neither preempts the other, both resolving in the Beat because they happened at once.
+
+All seven are the model doing what you described. Let me look at the two shield tests before rewriting, since they're the ones I want to isolate properly:
+
+Narration reads as transactions now. Correcting the ADR, which currently argues for the rule you just removed:

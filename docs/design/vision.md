@@ -117,7 +117,7 @@ and known, there's nothing to wait for.
 [ADR 0003](../adr/0003-the-action-phase-is-a-simulation-of-beats.md),
 [ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md),
 [ADR 0009](../adr/0009-the-party-is-left-anchored.md),
-[ADR 0010](../adr/0010-an-attack-is-an-exchange.md). A Beat is a time-step of the
+[ADR 0010](../adr/0010-an-attack-is-a-transaction.md). A Beat is a time-step of the
 Board: Beat 0 closes ranks, and Beat *n* resolves Slot *n* — on both sides at once, so
 nobody swings first. Targeting stays random and Taunt still constrains it, exactly as in
 Battlegrounds. The one real consequence: two evenly-matched Units can now trade blows and
@@ -128,9 +128,12 @@ simultaneously, I mean that ordering doesn't grant any advantage"*
 ([0006](../transcripts/0006-the-exchange-and-the-instance.md)). Most of Battlegrounds'
 outcomes are already independent of ordering, because its attacks damage both Units. This
 removes the one place ordering decides something — who swings first — and leaves the rest
-alone. [ADR 0010](../adr/0010-an-attack-is-an-exchange.md) records where the engine had
-drifted from that, in both directions, and the two tie-breaks simultaneity forces that
-Battlegrounds cannot settle.
+alone. Mechanically it is small: Battlegrounds runs combat as a sequence of atomic
+**steps**, and this takes the two that run back-to-back — one side's attack, then the
+other's — and puts them in the same Beat, so neither can pre-empt the other. Everything
+inside a step still resolves exactly as Battlegrounds resolves it.
+[ADR 0010](../adr/0010-an-attack-is-a-transaction.md) records where the engine had drifted
+from that, in both directions.
 
 > *instead of resolving combat back and forth in turns, I'd like each turn of attacks to
 > resolve simultaneously (rock, paper, scissors is a real model)* —
@@ -225,9 +228,9 @@ Kept here because each has, at some point, been mistaken for one.
 - **An attack damaging both Units** is Battlegrounds' rule too. The engine damaged only
   the target for a while — drift in the other direction, a delta by omission rather than
   by invention, and the more dangerous kind because nothing was written down to argue
-  with. [ADR 0010](../adr/0010-an-attack-is-an-exchange.md).
+  with. [ADR 0010](../adr/0010-an-attack-is-a-transaction.md).
 - **Deaths resolving immediately after the attack that caused them** is Battlegrounds',
-  and was never decided otherwise; also [ADR 0010](../adr/0010-an-attack-is-an-exchange.md).
+  and was never decided otherwise; also [ADR 0010](../adr/0010-an-attack-is-a-transaction.md).
 - **The five keywords** — Taunt, Divine Shield, Poisonous, Windfury, Reborn — are
   Battlegrounds' own, unmodified. Frenzy, Avenge and Magnetic are Triggers rather than
   keywords, and the vocabulary already has them.

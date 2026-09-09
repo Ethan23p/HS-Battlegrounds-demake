@@ -315,42 +315,36 @@ fn resolve_beat(board: &mut Board, index: usize, rng: &mut Rng, log: &mut Vec<Ev
         .unwrap_or(0);
 
     for instance in 0..instances {
-        let blows = declare(board, index, instance, rng, log);
+        let blows = declare(board, index, instance, rng);
         if blows.is_empty() {
             continue;
         }
-        let owed = gather(board, &clashes(&blows), log);
-        land(board, &owed, log);
-
+        for blow in &blows {
+            resolve_attack(board, blow, log);
+        }
         let attackers: Vec<(Side, usize)> = blows.iter().map(|b| (b.by, b.attacker)).collect();
         apply_deaths(board, &attackers, log);
     }
 }
 
-/// One attack, declared but not yet landed. Who swung, and at whom.
+/// One attack, drawn but not yet resolved. Who swung, and at whom.
 ///
-/// Damage is not recorded here: nothing lands between declaring an instance's
-/// attacks and resolving them, so [`gather`] reads both participants off the Board
-/// and cannot see a stale figure.
+/// Targets for a whole instance are drawn before any of them resolve, so no
+/// attack can take a target away from another. That, and nothing else, is what
+/// stops one side's attack from pre-empting the other's.
 struct Blow {
     by: Side,
     attacker: usize,
     defender: usize,
+    instance: u32,
 }
 
 /// Every attack of one instance, drawn against the Board as the instance found it.
 ///
-/// Both sides draw here, before any damage lands, so neither side's target
-/// selection can see the other's blow. A Unit that cannot attack -- absent, dead,
-/// out of instances, or with no attack to deal -- simply declares nothing;
-/// Battlegrounds' zero-attack minions do not swing either.
-fn declare(
-    board: &Board,
-    index: usize,
-    instance: u32,
-    rng: &mut Rng,
-    log: &mut Vec<Event>,
-) -> Vec<Blow> {
+/// A Unit that cannot attack -- absent, dead, out of instances, or with no attack
+/// to deal -- draws nothing; Battlegrounds' zero-attack minions do not swing
+/// either. Nothing is logged here: an attack is narrated when it resolves.
+fn declare(board: &Board, index: usize, instance: u32, rng: &mut Rng) -> Vec<Blow> {
     let mut blows = Vec::with_capacity(2);
     for by in [Side::Player, Side::Opposing] {
         let Some(attacker) = board.side(by).get(index) else {
@@ -364,17 +358,11 @@ fn declare(
         let Some(defender) = select_target(rng, board.side(by.other())) else {
             continue;
         };
-        log.push(Event::Struck {
-            by,
-            attacker_slot: slot_no(index),
-            target_slot: slot_no(defender),
-            damage: attacker.attack,
-            instance,
-        });
         blows.push(Blow {
             by,
             attacker: index,
             defender,
+            instance,
         });
     }
     blows
@@ -400,150 +388,84 @@ fn select_target(rng: &mut Rng, party: &Party) -> Option<usize> {
     rng.choose(pool).copied()
 }
 
-/// Two Units meeting in one instant. Always one Unit from each Party.
+/// One attack, resolved exactly as Battlegrounds resolves one.
 ///
-/// **A pair meets once per instance, however many of them swung.** Battlegrounds
-/// would resolve two Units attacking each other as two separate exchanges -- but
-/// only ever gets to, when the first exchange failed to kill the second attacker.
-/// Its outcome for a 3/4 against a 3/3 is the same whoever swings first, and a
-/// delta that reads "ordering grants no advantage" has no business changing it.
-/// Collapsing the pair keeps every outcome Battlegrounds was already unambiguous
-/// about, and changes only the ones that turned on who swung first.
-struct Clash {
-    player: usize,
-    opposing: usize,
-    /// Which side declared the attack. Both, when they chose each other. A side
-    /// that did not is *answering*, and answering is not attacking.
-    attacked: [bool; 2],
-}
+/// **An attack is a transaction, not a trade.** It has a direction: this Unit
+/// swings at that one, and the one struck answers with its own attack in the same
+/// motion. Two Units that chose each other in the same Beat are two transactions,
+/// each with its own attacker -- not one symmetrical meeting. Collapsing them
+/// would be reaching for "one action, one outcome," and it would quietly restore
+/// the pre-emption this Action Phase exists to remove: in Battlegrounds the second
+/// attack goes missing only because the first one killed its attacker first.
+///
+/// Both Units' attack is read before either blow lands, so the exchange within a
+/// transaction is genuinely mutual -- a Unit's answer is not weakened by the blow
+/// it is answering.
+fn resolve_attack(board: &mut Board, blow: &Blow, log: &mut Vec<Event>) {
+    let defending = blow.by.other();
+    let (Some(attacker), Some(defender)) = (
+        board.side(blow.by).get(blow.attacker),
+        board.side(defending).get(blow.defender),
+    ) else {
+        return;
+    };
+    let (attack, attacker_poisons) = (attacker.attack, attacker.has(Keyword::Poisonous));
+    let (answer, defender_poisons) = (defender.attack, defender.has(Keyword::Poisonous));
 
-/// The instance's declared attacks, as the meetings they amount to.
-fn clashes(blows: &[Blow]) -> Vec<Clash> {
-    let mut out: Vec<Clash> = Vec::with_capacity(2);
-    for blow in blows {
-        let (player, opposing) = match blow.by {
-            Side::Player => (blow.attacker, blow.defender),
-            Side::Opposing => (blow.defender, blow.attacker),
-        };
-        match out
-            .iter_mut()
-            .find(|c| c.player == player && c.opposing == opposing)
-        {
-            Some(clash) => clash.attacked[side_index(blow.by)] = true,
-            None => {
-                let mut attacked = [false; 2];
-                attacked[side_index(blow.by)] = true;
-                out.push(Clash {
-                    player,
-                    opposing,
-                    attacked,
-                });
-            }
-        }
+    log.push(Event::Struck {
+        by: blow.by,
+        attacker_slot: slot_no(blow.attacker),
+        target_slot: slot_no(blow.defender),
+        damage: attack,
+        instance: blow.instance,
+    });
+    hit(
+        board,
+        defending,
+        blow.defender,
+        attack,
+        attacker_poisons,
+        log,
+    );
+
+    if answer > 0 {
+        log.push(Event::StruckBack {
+            by: defending,
+            slot: slot_no(blow.defender),
+            target_slot: slot_no(blow.attacker),
+            damage: answer,
+        });
+        hit(board, blow.by, blow.attacker, answer, defender_poisons, log);
     }
-    out
 }
 
-/// What one Unit is owed by an instance, before any of it lands.
-#[derive(Clone, Copy, Default)]
-struct Incoming {
-    amount: i32,
-    /// Any one poisonous blow among them is enough.
+/// Land one blow on one Unit.
+///
+/// A Divine Shield absorbs it whole -- including its Poisonous, which needs damage
+/// to actually land. One blow, one shield: a Unit struck by two attacks in the same
+/// Beat spends its shield on the first and takes the second, which is Battlegrounds'
+/// rule and needs no help from ours.
+fn hit(
+    board: &mut Board,
+    side: Side,
+    index: usize,
+    damage: i32,
     poisonous: bool,
-    blows: u32,
-}
-
-/// The damage an instance's clashes add up to, per Unit.
-///
-/// **A clash is an exchange**: each Unit deals its attack to the other, in the same
-/// instant. That is Battlegrounds' rule, and the one that gives a Unit's health,
-/// Taunt and Poisonous meaning while it is not the one swinging.
-fn gather(board: &Board, clashes: &[Clash], log: &mut Vec<Event>) -> [[Incoming; SLOTS]; 2] {
-    let mut owed = [[Incoming::default(); SLOTS]; 2];
-    for clash in clashes {
-        let (Some(player), Some(opposing)) = (
-            board.player.get(clash.player),
-            board.opposing.get(clash.opposing),
-        ) else {
-            continue;
-        };
-        let met = [
-            (Side::Player, clash.player, player, clash.opposing),
-            (Side::Opposing, clash.opposing, opposing, clash.player),
-        ];
-        for (side, index, unit, other_index) in met {
-            if unit.attack <= 0 {
-                continue;
-            }
-            // The attack itself was logged when it was declared; only an answer
-            // still needs saying.
-            if !clash.attacked[side_index(side)] {
-                log.push(Event::StruckBack {
-                    by: side,
-                    slot: slot_no(index),
-                    target_slot: slot_no(other_index),
-                    damage: unit.attack,
-                });
-            }
-            owe(
-                &mut owed,
-                side.other(),
-                other_index,
-                unit.attack,
-                unit.has(Keyword::Poisonous),
-            );
-        }
+    log: &mut Vec<Event>,
+) {
+    let Some(unit) = board.side_mut(side).get_mut(index) else {
+        return;
+    };
+    if unit.keywords.remove(&Keyword::DivineShield) {
+        log.push(Event::ShieldAbsorbed {
+            side,
+            slot: slot_no(index),
+        });
+        return;
     }
-    owed
-}
-
-/// Add one blow to what a Unit is owed.
-fn owe(owed: &mut [[Incoming; SLOTS]; 2], side: Side, index: usize, damage: i32, poisonous: bool) {
-    let entry = &mut owed[side_index(side)][index];
-    entry.amount += damage;
-    entry.poisonous |= poisonous;
-    entry.blows += 1;
-}
-
-/// Which row of an `owed` table a Side keeps. Known only to this module.
-fn side_index(side: Side) -> usize {
-    match side {
-        Side::Player => 0,
-        Side::Opposing => 1,
-    }
-}
-
-/// Land an instance's damage -- all of it, at the same moment.
-///
-/// **A Divine Shield absorbs the instant, not one blow of it.** Battlegrounds never
-/// has to rule on this, because nothing there damages a Unit twice at the same
-/// moment; simultaneity does, whenever a Unit is both struck by one enemy and
-/// answering another. Absorbing a single blow would mean absorbing whichever blow
-/// an implementation happened to apply first -- an advantage granted by ordering,
-/// which is the one thing this Action Phase exists to remove.
-fn land(board: &mut Board, owed: &[[Incoming; SLOTS]; 2], log: &mut Vec<Event>) {
-    for side in [Side::Player, Side::Opposing] {
-        for (index, incoming) in owed[side_index(side)].iter().enumerate() {
-            if incoming.blows == 0 {
-                continue;
-            }
-            let Some(unit) = board.side_mut(side).get_mut(index) else {
-                continue;
-            };
-            if unit.keywords.remove(&Keyword::DivineShield) {
-                // The shield eats the instant whole -- including its Poisonous,
-                // which needs damage to actually land.
-                log.push(Event::ShieldAbsorbed {
-                    side,
-                    slot: slot_no(index),
-                });
-                continue;
-            }
-            unit.health -= incoming.amount;
-            if incoming.poisonous {
-                unit.doomed = true;
-            }
-        }
+    unit.health -= damage;
+    if poisonous {
+        unit.doomed = true;
     }
 }
 

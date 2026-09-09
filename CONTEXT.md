@@ -37,22 +37,30 @@ the one exception: it closes ranks and nobody acts.
 _Avoid_: tick, turn, step, exchange
 
 **Simultaneous**: Ethan's meaning, and the whole of the delta — *"ordering doesn't grant
-any advantage"* ([0006](docs/transcripts/0006-the-exchange-and-the-instance.md)). A
-principle, not a mechanism: it removes the advantage of swinging first and nothing else.
-Where it creates a situation Battlegrounds never has to rule on, the tie-break is
-whichever one no ordering could change — see
-[ADR 0010](docs/adr/0010-an-attack-is-an-exchange.md).
+any advantage"*, achieved by taking the steps Battlegrounds runs back-to-back and
+*"conceptually putting them in the same beat"*
+([0006](docs/transcripts/0006-the-exchange-and-the-instance.md)). A principle, not a
+mechanism. Nothing in a Beat pre-empts anything else in it; everything inside still
+resolves exactly as Battlegrounds resolves it. See
+[ADR 0010](docs/adr/0010-an-attack-is-a-transaction.md).
 
-**Instance** *(provisional)*: The indivisible step of an Action Phase, and what
-"simultaneously" is true of. Both sides declare, every blow is answered, all of that
-damage lands at once, then the dead are removed. A Beat is one instance, or two where
-Windfury is involved.
+**Step**: One atomic unit of resolution — an attack, an effect, a trigger, a summon.
+Battlegrounds runs combat as a sequence of steps, and so do we; the delta is only which
+steps share a Beat.
+_Avoid_: action, operation
+
+**Instance** *(provisional)*: One pass through a Beat's steps — both sides draw their
+targets against the same Board, both attacks resolve, then the dead are removed. A Beat
+is one instance, or two where Windfury is involved.
 _Avoid_: sub-beat, moment, phase
 
-**Clash** *(provisional)*: Two Units meeting in one instance — always one from each Party.
-Each deals its attack to the other. A pair clashes **once** per instance however many of
-them swung, so two Units that chose each other do not exchange twice.
-_Avoid_: hit, trade, engagement
+**Transaction**: One attack, and the thing a Beat holds two of. It has a **direction**:
+this Unit swings at that one, and the one struck answers with its own attack in the same
+motion. Two Units that chose each other are two transactions, not one symmetrical trade —
+Ethan's distinction: *"in battlegrounds, there was effectively no such thing as a trade
+... It's a transaction"*
+([0006](docs/transcripts/0006-the-exchange-and-the-instance.md)).
+_Avoid_: trade, clash, exchange, meeting
 
 **Answering**: Dealing your attack back to a Unit that struck you, in the same instant.
 Battlegrounds' rule, and the reason health, Taunt and Poisonous matter on a Unit that
