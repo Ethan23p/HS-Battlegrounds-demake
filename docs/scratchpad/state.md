@@ -13,11 +13,13 @@ the rules this directory follows.
 - **The Action Phase** — `resolve(board, rng) -> Resolution`. Windfury, Divine Shield,
   Poisonous, Reborn, and Taunt all live. Targeting is random and respects Taunt, exactly
   as in Battlegrounds — every attack draws its own target
-  ([ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md)). Two
-  things about a fight are actually ours: both sides act in the same Beat instead of
-  alternating, and the attacker dies last on a mutual trade. Nothing ever attacks a
-  Player — that's Hearthstone, not Battlegrounds. `rng` already draws from
-  `Domain::Combat`, ahead of Effects needing it.
+  ([ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md)). An
+  attack damages **both** Units: the target answers with its own attack in the same
+  instant, and the indivisible step is the *instance*, not the Beat
+  ([ADR 0010](../adr/0010-an-attack-is-an-exchange.md)). Two things about a fight are
+  actually ours: both sides act in the same Beat instead of alternating, and the attacker
+  dies last on a mutual trade. Nothing ever attacks a Player — that's Hearthstone, not
+  Battlegrounds. `rng` already draws from `Domain::Combat`, ahead of Effects needing it.
 - Clippy clean. `cargo run -p bg-sim --example watch` prints a narrated fight.
 
 ## Decided (see `docs/adr/` for the reasoning behind each)
@@ -38,15 +40,7 @@ stage. Unit data files get written alongside.
 
 ## Open — awaiting Ethan's ratification or a design round
 
-1. **Reborn's exact return stats.** Currently: keeps current attack, returns at 1 health,
-   loses Reborn. Not verified against Battlegrounds; the default rule says Battlegrounds
-   should settle it.
-2. **Damage-on-loss.** Deferred to v0.2/v0.3, computed from `Resolution::final_board`'s
-   survivors once Health exists as a Prep-Phase concept. The Action Phase itself no
-   longer produces it — removed in
-   [ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md), which
-   corrected an earlier overreach (see that ADR's "What this reverses").
-3. **`bg-cli`'s role, now that the frontend is stated as TypeScript.** `bg-cli` was
+1. **`bg-cli`'s role, now that the frontend is stated as TypeScript.** `bg-cli` was
    Claude's own scaffolding guess for "the frontend" (*"I made those names up"* —
    [0001](../transcripts/0001-project-kickoff.md)), not a decision Ethan made, and it's
    still an empty stub (`fn main() {}`). Ethan's 2026-09-08 concept statement is the
@@ -54,16 +48,35 @@ stage. Unit data files get written alongside.
    [vision.md's concept section](../design/vision.md#the-concept). Whether `bg-cli`
    becomes a debug/headless harness, an API surface the TypeScript frontend talks to, or
    gets deleted outright is undecided. Doesn't block v0.1 — still headless-first.
-4. **Attacker-cycling and Windfury-against-an-empty-board.** Two implementation details
-   Claude had to invent inside
-   [ADR 0008](../adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md): each
-   side cycles left-to-right through its own Party for its attacker (recomputed fresh
-   each Beat rather than a stored pointer, to dodge Battlegrounds' known pointer-quirk
-   edge cases), and a Windfury Unit's second swing hits nothing rather than the Player if
-   the opposing Party is already empty. Flagged in that ADR for correction; not yet
-   explicitly ratified either way.
-5. **"Pass" is still provisional** (see `CONTEXT.md`). Ethan's own phrase was "a round of
-   beats"; *Round* was already taken. Rename freely if a better word turns up.
+2. **A Divine Shield absorbs the whole instant.** Chosen in
+   [ADR 0010](../adr/0010-an-attack-is-an-exchange.md) because it is order-independent,
+   which is the delta applied to its own consequences — but it is the *generous* reading,
+   and "absorbs the largest blow, the rest land" is equally order-independent and
+   stingier. Nothing else depends on the choice; one `land()` branch switches it. Worth a
+   sentence from Ethan when the Unit set is big enough for the difference to be felt.
+3. **"Pass", "instance" and "clash" are provisional** (see `CONTEXT.md`). Ethan's phrase
+   for a Pass was "a round of beats"; *Round* was already taken. *Instance* and *clash*
+   are Claude's, coined in ADR 0010. Rename freely if better words turn up.
+4. **The Action Phase must not mutate the Party of record.** `resolve` takes the Board by
+   value, so Rust already prevents a caller from seeing the fight's damage in its own
+   Party — but nothing has tested it, because no Prep Phase exists to hold a Party
+   between Rounds. Battlegrounds resets; so should we. Revisit when v0.2 builds the
+   thing that owns a Party across Rounds.
+
+### Closed since 2026-09-08
+
+- **Reborn's exact return stats** — verified against Battlegrounds rather than asked
+  about: current attack, 1 health, keeps other keywords, loses Reborn. The engine already
+  did exactly this.
+- **Attacker-cycling and Windfury-against-an-empty-board**, ADR 0008's two flagged
+  inventions. Both confirmed as Battlegrounds' own behaviour and left as built: each side
+  cycles left-to-right through its own Party (recomputed fresh each Beat), and a Windfury
+  Unit's second swing hits nothing rather than the Player.
+- **The keyword set is closed at five for v0.1.** Frenzy, Avenge and Magnetic are Triggers,
+  which the vocabulary already has; Cleave is ability text through `Selector::Adjacent`;
+  Venomous is a genuine candidate that no content yet needs.
+- **Damage-on-loss** stays where the roadmap puts it — v0.2/v0.3, computed from
+  `Resolution::final_board`'s survivors once Health exists as a Prep-Phase concept.
 
 ## Design notes for unbuilt systems
 

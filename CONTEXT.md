@@ -36,6 +36,30 @@ Party. Beat *n* resolves Slot *n*, where whoever stands there acts — on both s
 the one exception: it closes ranks and nobody acts.
 _Avoid_: tick, turn, step, exchange
 
+**Simultaneous**: Ethan's meaning, and the whole of the delta — *"ordering doesn't grant
+any advantage"* ([0006](docs/transcripts/0006-the-exchange-and-the-instance.md)). A
+principle, not a mechanism: it removes the advantage of swinging first and nothing else.
+Where it creates a situation Battlegrounds never has to rule on, the tie-break is
+whichever one no ordering could change — see
+[ADR 0010](docs/adr/0010-an-attack-is-an-exchange.md).
+
+**Instance** *(provisional)*: The indivisible step of an Action Phase, and what
+"simultaneously" is true of. Both sides declare, every blow is answered, all of that
+damage lands at once, then the dead are removed. A Beat is one instance, or two where
+Windfury is involved.
+_Avoid_: sub-beat, moment, phase
+
+**Clash** *(provisional)*: Two Units meeting in one instance — always one from each Party.
+Each deals its attack to the other. A pair clashes **once** per instance however many of
+them swung, so two Units that chose each other do not exchange twice.
+_Avoid_: hit, trade, engagement
+
+**Answering**: Dealing your attack back to a Unit that struck you, in the same instant.
+Battlegrounds' rule, and the reason health, Taunt and Poisonous matter on a Unit that
+isn't the one swinging. Answering is not attacking: it draws no target and makes nobody
+an attacker.
+_Avoid_: retaliation, counter-attack, riposte
+
 **Pass** *(provisional)*: One full turn of the clock — Beat 0, then Beats 1 through 8.
 Ethan's phrase was "a round of beats"; **Round** was already taken. One Pass covers the
 whole Board, not one Party.
