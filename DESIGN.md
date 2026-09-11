@@ -39,4 +39,18 @@ Repeat.
 
 ## Features
 
-_(pending)_
+### Feature 1
+
+**Q: What's the first departure from Battlegrounds you want to talk about — what is it, and how does it work?**
+
+> In Battlegrounds, the combat phase proceeds one step at a time - a step is a container
+> containing a single interaction, which could be effectively anything (a unit action, an
+> effect, hero power) - and many interactions spawn steps which have to resolve in place
+> before the next step can be taken. These steps are always synchronous transactions and
+> usually involve 1 origin entity and 1 target entity - except when they don't.
+>
+> Instead of Battlegrounds' 'step' this app has beats which are just like steps except
+> they support concurrent transactions between arbitrary entities - in a BG's step, an
+> interaction has to resolve before the next can begin, but this app's beats contain any
+> arbitrary number of interactions we choose; nonetheless, most beats involve one
+> interaction.
