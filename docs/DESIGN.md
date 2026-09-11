@@ -35,8 +35,6 @@ Given directly, not through the question loop:
 > like Super Auto Pets - non-synchronous matches, that's as far as it's worth figuring
 > out ahead of time;
 
-**Clarification (targeting — not a departure):**
-
 **Q: How does a unit choose its target within a beat?**
 
 > Random targeting, like Battlegrounds — one attacker, one random defender per side,
