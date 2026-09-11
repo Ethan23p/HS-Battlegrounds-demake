@@ -14,7 +14,11 @@ turns in it, or anything derived from them, as settled design is not on.
 older statements of Ethan's to re-open settled ground — an earlier session can be
 superseded by a later one, and DESIGN.md is where that gets adjudicated. Quote from a
 transcript when recording a decision Ethan has just made; otherwise work from DESIGN.md.
-Transcript `0004` in particular spans both the discarded iteration and the fresh start.
+
+The archive is split at the fresh start: `0004` ends with the interview that produced
+DESIGN.md's **Initial** contents, and everything before that in it belongs to the
+discarded iteration. `0005` begins at the fresh start and is where **Ongoing** cites
+from.
 
 Everything else docs-shaped that predates the restart — `docs/research/`, `CONTEXT.md`'s
 glossary, any ADRs or vocabulary referenced but not present (`docs/design/vision.md`,

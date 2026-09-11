@@ -103,6 +103,39 @@ nothing to double-count. **`0001` and `0002` predate this fix too**, and their r
 logs are in other containers — if a quote from either fails to verify, this is the
 first thing to suspect.
 
+## Splitting one session into two exports
+
+A session can contain more than one era — `/clear` ends one line of work and starts
+another inside the same session id. `0004` and `0005` are one such session, split at the
+`/clear` that opened the fresh start, so that the discarded iteration and the work that
+replaced it are separate documents.
+
+The split is done on the raw JSONL by line, not on the Markdown, and the exporter is then
+run over each half:
+
+```bash
+# find the boundary: the line holding the /clear, and the turn after it
+# then slice the raw log and export each half through --project-dir
+mkdir -p part_a part_b
+python3 - <<'EOF'
+lines = open('<session>.jsonl').readlines()
+cut = 986  # first line of the second era
+open('part_a/<session>.jsonl','w').writelines(lines[:cut])
+open('part_b/<session>.jsonl','w').writelines(lines[cut:])
+EOF
+python3 scripts/export_transcript.py --project-dir part_a --session <session> --out docs/transcripts/0004-....md
+python3 scripts/export_transcript.py --project-dir part_b --session <session> --out docs/transcripts/0005-....md
+```
+
+Two things make this safe to trust. The halves are contiguous and non-overlapping, so
+`lines_total` sums to the original. And the split is verified by exporting the *whole*
+log and checking that the two bodies, concatenated, equal it exactly — do that check, and
+expect the only difference to be turns the live session added after the halves were cut.
+
+Both files then get `source_path` rewritten to the real log they came from, rather than
+the temporary slice, plus a `source_span` line naming the range. `session_id` is
+deliberately the same in both: it is one session.
+
 ## Caveat: these are point-in-time snapshots
 
 An export captures a session exactly as it stood when the script ran. If the session was

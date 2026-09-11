@@ -111,7 +111,7 @@ the full implications of the quotation; the quotations are Ethan's.
 *Claude asked whether to rename `Board` and `Party` in the code, having noticed that
 Departure 5 says "the typical board is 8 slots" while the code used `Board` for both
 sides at once and `Party` for one side's eight slots.*
-([0004](transcripts/0004-the-fresh-start-and-the-intent-clock.md))
+([0005](transcripts/0005-the-fresh-start-and-the-intent-clock.md))
 
 > a board is the environment, with two opposing parties on it, parties consisting of
 > units, units inhabiting slots on the board.
@@ -120,7 +120,7 @@ sides at once and `Party` for one side's eight slots.*
 
 *The engine had been walking slot indices 1..8 and calling each lap a "pass", so a pass
 was a second clock alongside beats.*
-([0004](transcripts/0004-the-fresh-start-and-the-intent-clock.md))
+([0005](transcripts/0005-the-fresh-start-and-the-intent-clock.md))
 
 > I don't like the concept of a 'pass'; I prefer there's only one variable representing
 > time: beats. A pass is arbitrary - what matters is that beats are proceeding and units
@@ -138,7 +138,7 @@ unit rather than in a cursor over slots: a unit holds a count of how many more t
 means to act, the board renews them when nobody holds any, and compaction becomes safe
 every beat because the count rides along when a unit slides. Claude asked whether to
 call the field `actions` or `intent`.*
-([0004](transcripts/0004-the-fresh-start-and-the-intent-clock.md))
+([0005](transcripts/0005-the-fresh-start-and-the-intent-clock.md))
 
 > nice, all of that sounds more clean. Actions was the previous model - but, indeed,
 > instead of actions I prefer intent
