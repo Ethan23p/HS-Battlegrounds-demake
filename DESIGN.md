@@ -77,3 +77,10 @@ Repeat.
 > unit Charlie receives 2 damage (goes from 2 to 0 health)
 > Beat B
 > unit Charlie dies, triggering their 'on death'
+
+### Feature 3 — keywords
+
+**Q: Which keywords are in, and does any of them work differently than it does in Battlegrounds?**
+
+> Same as Battlegrounds — Taunt, Divine Shield, Poisonous, Windfury, Reborn, and Rally
+> (Rally is from the latest season, it's basically 'on attack') all unchanged
