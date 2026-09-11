@@ -47,6 +47,13 @@ Given directly, not through the question loop:
 - Rust back-end
 - Seeded RNG
 
+**Q: You mentioned wanting matches to be asynchronous — offline play, an unbounded prep phase, opponent drawn at random from a pool when you end your turn. Is that still the model, and what does it look like end to end?**
+
+> design decision: gameplay is offline, single player by obligation; if I get to develop
+> this into a full product, it will probably be distantly similar to Battlegrounds, more
+> like Super Auto Pets - non-synchronous matches, that's as far as it's worth figuring
+> out ahead of time;
+
 ---
 
 ## Departures
