@@ -1,30 +1,9 @@
 # HS-Battlegrounds-demake — Design
 
-## Process
-
-This document is built by interview.
-
-**Claude's role:** informational interviewer, tasked with asking an extremely minimal
-question (the creation of which Ethan guides) which extracts from the User a sufficient
-answer.
-
-Before each of the following steps, Claude prints them verbatim in the chat to the User.
-
-**Step 0**
-Establish a file in the project root which contains sections for Vision, Departures, and
-Design Decisions, if it doesn't exist.
-
-**Step 1**
-Choose a topic from: vision + each departure + each design decision; each topic should be
-covered only once.
-Then draft an extremely minimal question which straightforwardly prompts the User to
-respond naturally and in detail about the topic.
-
-**Step 2**
-Assume that the User's response was sufficient.
-Place only the question and the User's response, formatted nicely, in the document.
-
-Repeat.
+This document is just an organizational device for pointing to the source of truth, which
+is actual quotations from Ethan within the transcripts. (And the initial contents of
+DESIGN.md) The intention is not that every line of code is attributable, but that
+explicit design decisions are immortalized and used as guidance.
 
 ---
 
@@ -40,6 +19,8 @@ Repeat.
 
 ## Design Decisions
 
+### Initial
+
 Given directly, not through the question loop:
 
 - Data-oriented, highly configurable
@@ -54,13 +35,6 @@ Given directly, not through the question loop:
 > like Super Auto Pets - non-synchronous matches, that's as far as it's worth figuring
 > out ahead of time;
 
----
-
-## Departures
-
-**Order:** beats (done) → targeting (clarification, not a departure) → death-resolution
-timing → keywords → abilities-as-data → board size & anchoring.
-
 **Clarification (targeting — not a departure):**
 
 **Q: How does a unit choose its target within a beat?**
@@ -71,7 +45,7 @@ timing → keywords → abilities-as-data → board size & anchoring.
 >
 > This isn't a feature/departure, just makes it in for clarification.
 
-### Departure 1 — beats
+#### Departure 1 — beats
 
 **Q: What's the first departure from Battlegrounds you want to talk about — what is it, and how does it work?**
 
@@ -87,7 +61,7 @@ timing → keywords → abilities-as-data → board size & anchoring.
 > arbitrary number of interactions we choose; nonetheless, most beats involve one
 > interaction.
 
-### Departure 2 — death-resolution timing
+#### Departure 2 — death-resolution timing
 
 **Q: When a unit dies mid-beat, when does its death actually take effect?**
 
@@ -98,21 +72,21 @@ timing → keywords → abilities-as-data → board size & anchoring.
 > Beat B
 > unit Charlie dies, triggering their 'on death'
 
-### Departure 3 — keywords
+#### Departure 3 — keywords
 
 **Q: Which keywords are in, and does any of them work differently than it does in Battlegrounds?**
 
 > Same as Battlegrounds — Taunt, Divine Shield, Poisonous, Windfury, Reborn, and Rally
 > (Rally is from the latest season, it's basically 'on attack') all unchanged
 
-### Departure 4 — abilities-as-data
+#### Departure 4 — abilities-as-data
 
 **Q: How should a card's abilities be represented — what does defining a new one look like?**
 
 > not cards but units - keep it simple, data-driven; more complex than that will have to
 > be a dedicated discussion
 
-### Departure 5 — board size & anchoring
+#### Departure 5 — board size & anchoring
 
 Given directly:
 
@@ -126,3 +100,54 @@ Given directly:
 
 > the resources discussion was the same thread of thought, but I'd rather discard that
 > and leave it at what I stated in the previous message
+
+### Ongoing
+
+In the order the decisions were made. Context lines are Claude's, and only there to carry
+the full implications of the quotation; the quotations are Ethan's.
+
+#### The board is the environment
+
+*Claude asked whether to rename `Board` and `Party` in the code, having noticed that
+Departure 5 says "the typical board is 8 slots" while the code used `Board` for both
+sides at once and `Party` for one side's eight slots.*
+([0004](transcripts/0004-the-fresh-start-and-the-intent-clock.md))
+
+> a board is the environment, with two opposing parties on it, parties consisting of
+> units, units inhabiting slots on the board.
+
+#### Unclear phrasing gets cut, not defended
+
+*Unprompted, on reading the comments in the adapted engine.*
+([0004](transcripts/0004-the-fresh-start-and-the-intent-clock.md))
+
+> I saw some head-scratcher phrasing in the code which would be better removed, still;
+> for instance, something like "a beat without any action is not a beat" or something,
+> if anything is at all unclear, might as well remove it or ask me about it;
+
+#### Beats are the only measure of time
+
+*The engine had been walking slot indices 1..8 and calling each lap a "pass", so a pass
+was a second clock alongside beats.*
+([0004](transcripts/0004-the-fresh-start-and-the-intent-clock.md))
+
+> I don't like the concept of a 'pass'; I prefer there's only one variable representing
+> time: beats. A pass is arbitrary - what matters is that beats are proceeding and units
+> have intents;
+
+*Asked in the same message, about what replaces the pass as the thing that tells the
+engine when a cycle is over and when a party may re-anchor:*
+
+> how do we know when to loop? when to compact? What's the data-oriented answer?
+
+#### Intent
+
+*Claude proposed that the answer to both questions is to put "whose beat is it" on the
+unit rather than in a cursor over slots: a unit holds a count of how many more times it
+means to act, the board renews them when nobody holds any, and compaction becomes safe
+every beat because the count rides along when a unit slides. Claude asked whether to
+call the field `actions` or `intent`.*
+([0004](transcripts/0004-the-fresh-start-and-the-intent-clock.md))
+
+> nice, all of that sounds more clean. Actions was the previous model - but, indeed,
+> instead of actions I prefer intent
