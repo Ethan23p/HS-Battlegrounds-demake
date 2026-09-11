@@ -6,6 +6,8 @@
 
 use std::collections::BTreeSet;
 
+use serde::{Deserialize, Serialize};
+
 use crate::units::{DefId, Keyword, Tribe, UnitDef};
 
 /// Slots per Party. Eight, and the number is deliberate: a Party is built to
@@ -17,7 +19,7 @@ pub const SLOTS: usize = 8;
 /// Play is offline and single-player: there is one Player, and the opposing
 /// Party is data rather than a participant. `Side` distinguishes the two Parties
 /// on the Board, not two players.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Side {
     Player,
     Opposing,
@@ -54,7 +56,7 @@ impl Side {
 /// been buffed and then damaged has no memory of how it got where it is. That is
 /// deliberate -- it keeps a Unit's state readable on its own, and there is no
 /// recomputation order to get wrong.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Unit {
     /// The Definition this was made from. Abilities are looked up through it.
     pub def: DefId,
@@ -154,7 +156,7 @@ impl Unit {
 /// **Invariant:** Units are packed to the left with no interior gaps -- board
 /// logic anchors on the left-most position. Taking a Unit out opens a hole, and
 /// [`Party::compact`] closes it; the Action Phase does both in the same Beat.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Party {
     slots: [Option<Unit>; SLOTS],
 }
@@ -268,7 +270,7 @@ impl std::error::Error for PartyFull {}
 
 /// The two Parties contesting an Action Phase. Targeting is random, so Slots do
 /// not face one another.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Board {
     pub player: Party,
     pub opposing: Party,

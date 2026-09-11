@@ -931,3 +931,46 @@ fn a_board_and_its_mirror_resolve_the_same_way() {
         "the shielded Unit fared differently depending on which side it stood on"
     );
 }
+
+// ---------------------------------------------------------------------------
+// A Resolution is a replay, and a replay travels
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_resolution_survives_a_round_trip_through_serde() {
+    // The log is the frontend's whole interface, so it has to be able to leave
+    // the process: across a WASM boundary, into a recorded fight, into a golden
+    // file.
+    let r = resolve(
+        board_of(
+            vec![
+                plain("badger", 2, 3),
+                u("gusty", 3, 6, &[Keyword::Windfury]),
+            ],
+            vec![
+                u("shielded", 2, 4, &[Keyword::DivineShield]),
+                u("phoenix", 1, 2, &[Keyword::Reborn]),
+            ],
+        ),
+        &mut rng(),
+    );
+    let text = ron::to_string(&r).expect("a Resolution serializes");
+    let back: Resolution = ron::from_str(&text).expect("and comes back");
+    assert_eq!(back, r);
+}
+
+#[test]
+fn the_opening_board_replays_into_the_same_fight() {
+    // Every Event states a change rather than a state, so the opening Board is
+    // the other half of a replay. Kept honestly: it is the Board as it stood, not
+    // the caller's copy.
+    let r = resolve(
+        board_of(
+            vec![plain("badger", 2, 3)],
+            vec![u("shielded", 2, 4, &[Keyword::DivineShield])],
+        ),
+        &mut rng(),
+    );
+    let again = resolve(r.initial_board.clone(), &mut rng());
+    assert_eq!(again, r, "same Board, same Rng state, same fight");
+}

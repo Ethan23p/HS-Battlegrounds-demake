@@ -56,6 +56,8 @@
 //! Slots are numbered 1 through 8 in the rules and in every Event below. The
 //! array index behind a Slot is zero-based, and only this module knows it.
 
+use serde::{Deserialize, Serialize};
+
 use crate::party::{Board, Party, SLOTS, Side, Unit};
 use crate::rng::Rng;
 use crate::units::{DefId, Keyword};
@@ -73,7 +75,7 @@ fn slot_no(index: usize) -> u32 {
 }
 
 /// How an Action Phase ended.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Outcome {
     PlayerWins,
     OpposingWins,
@@ -88,7 +90,7 @@ pub enum Outcome {
 /// The log is the Action Phase's explanation of itself. A frontend animates
 /// these in order and needs to know nothing else; a test asserts against them
 /// without reaching into engine internals. Every Slot number here counts from 1.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Event {
     /// A Beat, numbered from 1. Every Beat is logged, including ones in which
     /// nothing else happened, so that a Beat number is the time it says it is.
@@ -196,11 +198,18 @@ impl std::fmt::Display for Event {
 }
 
 /// What an Action Phase produced.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Serializable whole, and deliberately so: `initial_board` plus `log` is a
+/// replay. A frontend, a recorded fight and a golden-file test all want the same
+/// bytes, and none of them can reconstruct a Board from the log alone.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Resolution {
     pub outcome: Outcome,
     /// Beats run, counting from 1. A fight decided before anyone acted ran none.
     pub beats: u32,
+    /// The Board as it stood before the first Beat. Replaying the log needs it:
+    /// every Event states a change, not a state.
+    pub initial_board: Board,
     pub log: Vec<Event>,
     /// The Board as it stood when the Action Phase ended, left-anchored. The
     /// winner's survivors are what a damage-on-loss calculation will read, once
@@ -224,6 +233,7 @@ impl Resolution {
 /// Deterministic given `rng`'s state: equal Boards and equal Rng draws give
 /// equal Resolutions.
 pub fn resolve(mut board: Board, rng: &mut Rng) -> Resolution {
+    let initial_board = board.clone();
     let mut log = Vec::new();
     let mut beats = 0u32;
 
@@ -252,6 +262,7 @@ pub fn resolve(mut board: Board, rng: &mut Rng) -> Resolution {
     Resolution {
         outcome,
         beats,
+        initial_board,
         log,
         final_board: board,
     }
