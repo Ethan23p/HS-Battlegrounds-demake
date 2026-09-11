@@ -41,6 +41,16 @@ Repeat.
 
 **Order:** beats (done) → targeting → death-resolution timing → keywords → abilities-as-data.
 
+**Clarification (targeting — not a delta):**
+
+**Q: How does a unit choose its target within a beat?**
+
+> Random targeting, like Battlegrounds — one attacker, one random defender per side,
+> unless taunt is in play. If a taunt unit is in play on the opposing team, it always
+> gets targeted instead.
+>
+> This isn't a feature/departure, just makes it in for clarification.
+
 ### Feature 1
 
 **Q: What's the first departure from Battlegrounds you want to talk about — what is it, and how does it work?**
