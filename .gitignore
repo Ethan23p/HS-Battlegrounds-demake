@@ -4,3 +4,6 @@ target/
 # Python bytecode from scripts/
 __pycache__/
 *.py[cod]
+
+# Worktrees created inside the repo by `git worktree add`
+.claude/worktrees/
