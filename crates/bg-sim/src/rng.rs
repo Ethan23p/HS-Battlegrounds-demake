@@ -25,7 +25,7 @@ pub enum Domain {
     Matchmaking,
     /// Coin flips and target selection inside a combat.
     Combat,
-    /// Random targeting inside card effects.
+    /// Random targeting inside Unit abilities.
     Effect,
     /// Hero and starting-state selection.
     Setup,

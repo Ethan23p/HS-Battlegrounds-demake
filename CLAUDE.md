@@ -34,10 +34,11 @@ would be incomplete without it — and a link to the transcript it came from. Ru
 `scripts/export_transcript.py` to archive the session first; see
 `docs/transcripts/README.md`.
 
-The code in `crates/` is being kept, not restarted — but it was written against the old
-docs' concepts and vocabulary. Expect mismatches with `docs/DESIGN.md` (e.g. old docs
-describe left-anchoring, simultaneous beats, a specific resource model — confirm each
-still applies rather than assuming). When working on the code:
+The code in `crates/` is being kept, not restarted. `bg-sim` has since been adapted to
+`docs/DESIGN.md` — Board, Party, Slot, Unit, Beat and Intent all mean what DESIGN.md says,
+and the discarded resource model is gone — so treat it as current unless you find
+otherwise. The known open mismatch is that both sides act in the same Beat, which no
+quotation establishes. When working on the code:
 
 - Don't assume a comment, name, or module boundary reflects current design just because
   it's already in the code — check it against `docs/DESIGN.md`.
