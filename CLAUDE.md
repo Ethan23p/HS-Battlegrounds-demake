@@ -49,3 +49,7 @@ quotation establishes. When working on the code:
   its own explanation, delete it or ask Ethan about it — don't leave it standing.
 - Prefer adapting existing code over rewriting from scratch where the underlying logic
   still holds — this is a fresh start for docs, not necessarily for code.
+
+`docs/scratchpad/` holds Claude's own working notes — a roadmap, current status, open
+questions — kept for continuity between sessions. It is explicitly not canon and never
+cited as design authority; see its `README.md` for the rules.
