@@ -1,6 +1,6 @@
 [package]
 name = "bg-cli"
-description = "Shallow terminal frontend for bg-sim"
+description = "Fixture generator: resolves an Action Phase and emits it as JSON for a front end"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,3 +11,4 @@ path = "src/main.rs"
 
 [dependencies]
 bg-sim = { workspace = true }
+serde_json = { workspace = true }

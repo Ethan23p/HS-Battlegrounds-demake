@@ -10,8 +10,8 @@ Not canon — see `README.md`. Current as of 2026-09-11, from
   (`docs/DESIGN.md` Ongoing has both decisions).
 - `Resolution` is `Serialize`/`Deserialize` and carries `initial_board`, so a
   `Resolution` is a self-contained replay. Done in anticipation of 0.1 below.
-- No front end exists yet. `bg-cli`'s `main` is a stub; `bg-sim/examples/watch.rs`
-  prints a narrated log to a terminal, nothing more.
+- 0.1 is built: `bg-cli` emits a `Resolution` as JSON/JS, `web/` plays it back. See
+  the 0.1 entry below.
 - Both the docs-restart work and this audit are on open PR
   [#11](https://github.com/Ethan23p/HS-Battlegrounds-demake/pull/11), not yet merged to
   `main`.
@@ -26,13 +26,23 @@ staged so the parts needing no design input come first.
 
 ## Iterations
 
-### 0.1 — See a fight happen
-A Rust binary dumps a `Resolution` to JSON. A static HTML/CSS/JS page (no build step)
-plays the event log back with sliding units, damage numbers, shield flashes, death
-fades. Trigger: a button. No player input during the fight.
+### 0.1 — See a fight happen — done
+`bg-cli` resolves a fixture fight and emits it as JSON (`bg` binary, `json` or `js`
+format). `web/` is a static HTML/CSS/JS page, no build step: open `index.html`,
+click Play, watch units strike, shields flash, units die and revive, parties
+compact. Skip-to-end and a speed selector exist. Verified with Playwright
+(screenshots + a DOM/console check) since this environment can't see a native
+window; outcome matches what `bg-cli` itself resolves.
 
-**Open (engineering, not design):** pacing/speed control; placeholder unit appearance
-(colored box + name/stats) vs. planning for real art now.
+Settled as engineering, no design input needed: pacing is a dropdown (slow/normal/
+fast) rather than a fixed rate; units are colored boxes with name/stats/keyword
+badges, no art yet — revisit only if the 0.5+ polish pass wants real sprites.
+
+**Known debt, not a design question:** `app.js` reconstructs board state by
+replaying the log against rules read off `bg-sim`'s source (see the comment at the
+top of the file) — there's no shared code between the two, so a change to
+`bg-sim`'s Action Phase can silently desync the viewer. 0.4 (WASM) removes this by
+letting the page call the real engine instead of reimplementing its rules.
 
 ### 0.2 — Touch a unit
 Drag-to-reorder a party before a fight, via Pointer Events (mouse/touch/pen in one

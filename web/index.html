@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bg-sim viewer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>bg-sim — 0.1 fight viewer</h1>
+  <div class="controls">
+    <button id="play">Play</button>
+    <button id="skip">Skip to end</button>
+    <label>speed
+      <select id="speed">
+        <option value="600">slow</option>
+        <option value="300" selected>normal</option>
+        <option value="100">fast</option>
+      </select>
+    </label>
+  </div>
+</header>
+
+<main>
+  <div class="board">
+    <div class="row" id="opposing-row"></div>
+    <div class="row" id="player-row"></div>
+  </div>
+  <aside id="log"></aside>
+</main>
+
+<footer id="outcome"></footer>
+
+<script src="fight.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
