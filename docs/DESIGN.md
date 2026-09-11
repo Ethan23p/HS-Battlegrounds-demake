@@ -116,15 +116,6 @@ sides at once and `Party` for one side's eight slots.*
 > a board is the environment, with two opposing parties on it, parties consisting of
 > units, units inhabiting slots on the board.
 
-#### Unclear phrasing gets cut, not defended
-
-*Unprompted, on reading the comments in the adapted engine.*
-([0004](transcripts/0004-the-fresh-start-and-the-intent-clock.md))
-
-> I saw some head-scratcher phrasing in the code which would be better removed, still;
-> for instance, something like "a beat without any action is not a beat" or something,
-> if anything is at all unclear, might as well remove it or ask me about it;
-
 #### Beats are the only measure of time
 
 *The engine had been walking slot indices 1..8 and calling each lap a "pass", so a pass
