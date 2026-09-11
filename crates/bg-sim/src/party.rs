@@ -14,9 +14,9 @@ pub const SLOTS: usize = 8;
 
 /// Which Party a Unit belongs to.
 ///
-/// There is one Player; the opposing Party is data rather than a participant
-/// (ADR 0006). `Side` distinguishes the two Parties on the Board, not two
-/// players.
+/// Play is offline and single-player: there is one Player, and the opposing
+/// Party is data rather than a participant. `Side` distinguishes the two Parties
+/// on the Board, not two players.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Side {
     Player,
@@ -70,9 +70,9 @@ pub struct Unit {
     pub all_tribes: bool,
     /// Set once Reborn has been spent, so it cannot fire twice.
     pub reborn_spent: bool,
-    /// Marked when a lethal effect (Poisonous) has struck, independently of
+    /// Marked when a Poisonous blow has landed, which is lethal independently of
     /// health. Cleared only by the Unit leaving play.
-    pub doomed: bool,
+    pub poisoned: bool,
 }
 
 impl Unit {
@@ -88,7 +88,7 @@ impl Unit {
             tribes: def.tribes.clone(),
             all_tribes: def.all_tribes,
             reborn_spent: false,
-            doomed: false,
+            poisoned: false,
         }
     }
 
@@ -100,26 +100,23 @@ impl Unit {
         self.all_tribes || self.tribes.contains(&tribe)
     }
 
-    /// Whether this Unit should be removed at the end of the current Beat.
-    pub fn is_dead(&self) -> bool {
-        self.doomed || self.health <= 0
-    }
-
-    /// How many times this Unit acts within a single Beat.
+    /// Whether this Unit has run out -- 0 health, or struck by Poisonous.
     ///
-    /// Windfury is exactly this: whatever a Unit would do once in a Beat, it
-    /// does twice.
-    pub fn actions_per_beat(&self) -> u32 {
-        if self.has(Keyword::Windfury) { 2 } else { 1 }
+    /// Dying is not dead. A Unit that runs out in one Beat stands there for the
+    /// rest of it and dies at the top of the next one, which is the whole of the
+    /// departure on death timing. Only the Action Phase clears it.
+    pub fn is_dying(&self) -> bool {
+        self.poisoned || self.health <= 0
     }
 }
 
 /// The Units a Player brings, in the Slots they occupy.
 ///
 /// **Invariant, at Pass boundaries:** Units are packed to the left with no
-/// interior gaps. A death punches a hole that stays open for the rest of the
-/// Pass, and [`Party::compact`] closes it only once that Pass ends -- which is
-/// what holds Slots still under the attack order while a Pass runs (ADR 0009).
+/// interior gaps -- board logic anchors on the left-most position. A death
+/// punches a hole that stays open for the rest of the Pass, and
+/// [`Party::compact`] closes it only once that Pass ends, so that a Unit which
+/// has already acted cannot slide into a Slot the clock has yet to reach.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Party {
     slots: [Option<Unit>; SLOTS],
@@ -182,7 +179,7 @@ impl Party {
     /// The Slots immediately left and right of `slot` that hold a Unit.
     ///
     /// Adjacency is Slot arithmetic, not a spatial query -- which is only true
-    /// because a Party holds still for the length of a Pass (ADR 0009).
+    /// because a Party holds still for the length of a Pass.
     pub fn neighbours(&self, slot: usize) -> Vec<usize> {
         let mut out = Vec::with_capacity(2);
         if slot > 0 && self.get(slot - 1).is_some() {
@@ -235,8 +232,8 @@ impl std::fmt::Display for PartyFull {
 
 impl std::error::Error for PartyFull {}
 
-/// The two Parties contesting an Action Phase. Targeting is random (ADR 0008), so
-/// Slots do not face one another the way this once implied.
+/// The two Parties contesting an Action Phase. Targeting is random, so Slots do
+/// not face one another.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Board {
     pub player: Party,
@@ -292,22 +289,15 @@ mod tests {
         let u = unit("wisp", 1, 3);
         assert_eq!(u.health, 3);
         assert_eq!(u.max_health, 3);
-        assert!(!u.is_dead());
+        assert!(!u.is_dying());
     }
 
     #[test]
-    fn windfury_doubles_actions_per_beat() {
-        assert_eq!(unit("plain", 1, 1).actions_per_beat(), 1);
-        let wf = Unit::new(&def("gusty", 1, 1, &[Keyword::Windfury]));
-        assert_eq!(wf.actions_per_beat(), 2);
-    }
-
-    #[test]
-    fn a_doomed_unit_is_dead_regardless_of_health() {
+    fn a_poisoned_unit_is_dying_whatever_its_health() {
         let mut u = unit("stout", 1, 9);
-        assert!(!u.is_dead());
-        u.doomed = true;
-        assert!(u.is_dead(), "Poisonous kills independently of health");
+        assert!(!u.is_dying());
+        u.poisoned = true;
+        assert!(u.is_dying(), "Poisonous kills independently of health");
     }
 
     #[test]

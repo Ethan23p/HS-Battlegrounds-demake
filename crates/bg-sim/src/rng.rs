@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// An independent axis of randomness. Draws in one domain never disturb another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Domain {
-    /// Building the shared minion pool.
+    /// Building the shared Unit pool.
     Pool,
     /// Shop offers and rerolls.
     Shop,

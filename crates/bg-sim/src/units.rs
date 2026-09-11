@@ -93,23 +93,30 @@ impl Tribe {
 
 /// Persistent properties a unit can hold.
 ///
+/// The set is closed, and it is Battlegrounds' own: Taunt, Divine Shield,
+/// Poisonous, Windfury, Reborn and Rally, each unchanged. Keywords are the one
+/// place the demake deliberately departs from nothing.
+///
 /// Keywords are a set, not a list: granting Taunt twice is granting it once.
 /// They are separate from [`Effect`]s because the Action Phase consults them directly
 /// rather than running them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Keyword {
-    /// While this Unit or another with Taunt is alive in its Party, every attack
-    /// against that Party must target a Taunt holder. Exactly Battlegrounds'
-    /// rule; see ADR 0008.
+    /// While this Unit or another with Taunt stands in its Party, every attack
+    /// against that Party must target a Taunt holder.
     Taunt,
-    /// Absorbs the next instance of damage entirely.
+    /// Absorbs the next damage dealt to this Unit entirely, then is spent.
     DivineShield,
-    /// Whatever this Unit would do once in a Beat, it does twice.
+    /// This Unit attacks a second time, in a Beat of its own directly after its
+    /// first -- so the dead from the first attack are cleared in between.
     Windfury,
-    /// Any damage it deals to a unit destroys that unit.
+    /// Any damage it deals to a Unit kills that Unit, however much health it has.
     Poisonous,
-    /// The first time it dies, returns with 1 health.
+    /// The first time it dies, it returns in its Slot with 1 health.
     Reborn,
+    /// This Unit's abilities fire when it attacks -- [`Trigger::OnAttack`] made
+    /// visible on the Unit, so a Player can read it off the board.
+    Rally,
 }
 
 impl Keyword {
@@ -120,10 +127,12 @@ impl Keyword {
             Keyword::Windfury => "Windfury",
             Keyword::Poisonous => "Poisonous",
             Keyword::Reborn => "Reborn",
+            Keyword::Rally => "Rally",
         }
     }
 
-    /// Single-letter badge for compact Party rendering.
+    /// Single-letter badge for compact Party rendering. Rally takes `L` because
+    /// Reborn already holds `R`.
     pub fn badge(self) -> char {
         match self {
             Keyword::Taunt => 'T',
@@ -131,6 +140,7 @@ impl Keyword {
             Keyword::Windfury => 'W',
             Keyword::Poisonous => 'P',
             Keyword::Reborn => 'R',
+            Keyword::Rally => 'L',
         }
     }
 }
@@ -148,7 +158,8 @@ pub enum Trigger {
     Deathrattle,
     /// Once, before the first attack of an Action Phase.
     StartOfActionPhase,
-    /// When this unit is declared as an attacker, before damage.
+    /// When this Unit is declared as an attacker, before damage. A Unit carrying
+    /// abilities on this trigger wears [`Keyword::Rally`].
     OnAttack,
     /// When this unit takes damage and survives it.
     OnSurviveDamage,
@@ -398,6 +409,25 @@ impl UnitDef {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_keyword_has_its_own_badge() {
+        let keywords = [
+            Keyword::Taunt,
+            Keyword::DivineShield,
+            Keyword::Windfury,
+            Keyword::Poisonous,
+            Keyword::Reborn,
+            Keyword::Rally,
+        ];
+        let badges: std::collections::BTreeSet<char> =
+            keywords.into_iter().map(Keyword::badge).collect();
+        assert_eq!(
+            badges.len(),
+            keywords.len(),
+            "a badge has to name exactly one Keyword"
+        );
+    }
 
     #[test]
     fn filter_defaults_exclude_self() {
