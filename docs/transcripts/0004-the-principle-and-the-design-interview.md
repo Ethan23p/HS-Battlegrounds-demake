@@ -1,8 +1,8 @@
 ---
 session_id: 5ab60e7d-39c4-58d3-b35a-8ea9bd785988
-export_date: 2026-09-11T13:00:42Z
+export_date: 2026-09-11T13:07:52Z
 source_path: /root/.claude/projects/-home-user-HS-Battlegrounds-demake/5ab60e7d-39c4-58d3-b35a-8ea9bd785988.jsonl
-source_span: lines 1-986 of the session log, ending at the /clear that opened the fresh start
+source_span: lines 1-986
 include_tools: false
 message_counts:
   lines_total: 986

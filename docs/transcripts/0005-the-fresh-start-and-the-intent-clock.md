@@ -1,19 +1,19 @@
 ---
 session_id: 5ab60e7d-39c4-58d3-b35a-8ea9bd785988
-export_date: 2026-09-11T13:00:42Z
+export_date: 2026-09-11T13:07:52Z
 source_path: /root/.claude/projects/-home-user-HS-Battlegrounds-demake/5ab60e7d-39c4-58d3-b35a-8ea9bd785988.jsonl
-source_span: lines 987-end of the session log, beginning at the /clear that opened the fresh start
+source_span: lines 987-1795
 include_tools: false
 message_counts:
-  lines_total: 691
-  user_turns: 10
-  assistant_turns: 198
-  user_lines_filtered_as_noise: 117
-  tool_calls_omitted: 112
-  tool_results_omitted: 111
+  lines_total: 809
+  user_turns: 11
+  assistant_turns: 241
+  user_lines_filtered_as_noise: 140
+  tool_calls_omitted: 135
+  tool_results_omitted: 134
   answers_recovered: 2
   queued_messages_recovered: 0
-  thinking_blocks_omitted: 43
+  thinking_blocks_omitted: 51
   parse_errors: 0
   unknown_block_shapes: 0
 ---
@@ -288,3 +288,44 @@ The boundary is crisp — a real `/clear` at line 987, immediately before "we're
 Let me verify nothing was lost or duplicated, by exporting the full log and comparing bodies.
 
 Only difference is the live log growing between the two exports — the split itself is lossless. Re-splitting from the current log and checking the seam.
+
+The seam is exactly right. Writing both files with the real source path restored.
+
+Now repointing the DESIGN.md citations — all three Ongoing entries are post-`/clear`, so they belong to 0005.
+
+Two docs still describe the old arrangement.
+
+One wording fix — 0005's `source_span` says "that /clear" with no antecedent.
+
+Yes — it split cleanly. The boundary was unambiguous: a real `/clear` at line 987, immediately before "we're doing a fresh start."
+
+- **`0004-the-principle-and-the-design-interview.md`** — the discarded iteration plus the interview that produced DESIGN.md's Initial contents. Ends on Claude asking whether the document is settled.
+- **`0005-the-fresh-start-and-the-intent-clock.md`** — opens on "Could I have you delete the Claude.md... we're doing a fresh start," and runs through the code adaptation, Intent, and recasting DESIGN.md.
+
+I split the raw JSONL by line rather than the Markdown, then ran the exporter over each half. Three checks that it's lossless: the halves are contiguous and non-overlapping, their `lines_total` sums to the original, and the two exported bodies concatenated equal a full export of the same log **exactly** — the only diff was one assistant line the live session added between cutting the halves and taking the comparison export.
+
+Downstream fixes: the three Ongoing citations now point at 0005, and all 13 quotations verify against the transcript their section cites — Initial's ten in 0004, Ongoing's three in 0005. Both files keep the same `session_id` (it is one session), with `source_path` restored to the real log and a new `source_span` naming the range. CLAUDE.md's note about 0004 spanning both eras is rewritten, and I documented the procedure in the transcripts README.
+
+`CONTEXT.md` is gone. Tests still green.
+
+One thing worth flagging: the split is a manual procedure, not something the exporter supports. I wrote it up in the README so it's repeatable, but if this happens often, a `--from-line` / `--to-line` pair on the script would be a small addition.
+
+## User
+
+Could you replicate that work but via editing the export script? No special cases or exceptions in code, though, pls
+
+## Claude
+
+Let me read the script before changing it.
+
+Now the edits — a general line range, with no knowledge of what a boundary means.
+
+Now let me check the module docstring mentions the range, then verify the script reproduces the manual split exactly.
+
+Now the real test — the script must reproduce the manually-split files exactly.
+
+0004 is byte-identical. 0005 differs only because the live log grew — let me confirm that's all it is, and re-verify losslessness through the new flags.
+
+The live log keeps growing between exports. Let me freeze a snapshot and verify against that, which removes the race.
+
+Exact match, and `lines_total` sums (986 + 804 = 1790). Regenerating the committed transcripts through the flags.

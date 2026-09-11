@@ -110,31 +110,38 @@ another inside the same session id. `0004` and `0005` are one such session, spli
 `/clear` that opened the fresh start, so that the discarded iteration and the work that
 replaced it are separate documents.
 
-The split is done on the raw JSONL by line, not on the Markdown, and the exporter is then
-run over each half:
+`--from-line` and `--to-line` restrict an export to a range of raw JSONL lines. Find the
+boundary by reading the log — the script has no notion of what a boundary is, and
+shouldn't — then name it:
 
 ```bash
-# find the boundary: the line holding the /clear, and the turn after it
-# then slice the raw log and export each half through --project-dir
-mkdir -p part_a part_b
-python3 - <<'EOF'
-lines = open('<session>.jsonl').readlines()
-cut = 986  # first line of the second era
-open('part_a/<session>.jsonl','w').writelines(lines[:cut])
-open('part_b/<session>.jsonl','w').writelines(lines[cut:])
-EOF
-python3 scripts/export_transcript.py --project-dir part_a --session <session> --out docs/transcripts/0004-....md
-python3 scripts/export_transcript.py --project-dir part_b --session <session> --out docs/transcripts/0005-....md
+# the line numbers are raw JSONL lines, 1-based and inclusive
+grep -n 'command-name>/clear' ~/.claude/projects/<mangled-cwd>/<session>.jsonl
+
+python3 scripts/export_transcript.py --session <session> --to-line 986 \
+    --out docs/transcripts/0004-....md
+python3 scripts/export_transcript.py --session <session> --from-line 987 \
+    --out docs/transcripts/0005-....md
 ```
 
-Two things make this safe to trust. The halves are contiguous and non-overlapping, so
-`lines_total` sums to the original. And the split is verified by exporting the *whole*
-log and checking that the two bodies, concatenated, equal it exactly — do that check, and
-expect the only difference to be turns the live session added after the halves were cut.
+Raw line numbers are the unit because they are the only numbering that doesn't move: the
+log is append-only, so a line keeps its number for the life of the session however the
+renderer's filtering changes. Each export records its range as `source_span`, and
+`session_id` is deliberately the same in both — it is one session.
 
-Both files then get `source_path` rewritten to the real log they came from, rather than
-the temporary slice, plus a `source_span` line naming the range. `session_id` is
-deliberately the same in both: it is one session.
+Verify a split you intend to keep. Ranges that are contiguous and non-overlapping should
+contain between them exactly what one unranged export contains:
+
+```bash
+# copy the log first — a live session appends while you work, and an
+# export taken a minute later will legitimately have more in it
+cp ~/.claude/projects/<mangled-cwd>/<session>.jsonl frozen.jsonl
+python3 scripts/export_transcript.py --session frozen.jsonl --to-line 986 --out a.md
+python3 scripts/export_transcript.py --session frozen.jsonl --from-line 987 --out b.md
+python3 scripts/export_transcript.py --session frozen.jsonl --out full.md
+# strip front matter from each, then: body(a) + body(b) == body(full)
+# and lines_total from a and b should sum to lines_total from full
+```
 
 ## Caveat: these are point-in-time snapshots
 
