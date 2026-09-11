@@ -73,6 +73,13 @@ pub struct Unit {
     /// Marked when a Poisonous blow has landed, which is lethal independently of
     /// health. Cleared only by the Unit leaving play.
     pub poisoned: bool,
+    /// Intents this Unit still holds: how many more times it means to act before
+    /// the Board renews them.
+    ///
+    /// This is where "whose Beat is it" lives. Because it rides on the Unit
+    /// rather than in a cursor over Slots, a Party can close ranks the moment a
+    /// hole opens -- a Unit carries its Intents with it when it slides.
+    pub intents: u32,
 }
 
 impl Unit {
@@ -89,6 +96,7 @@ impl Unit {
             all_tribes: def.all_tribes,
             reborn_spent: false,
             poisoned: false,
+            intents: 0,
         }
     }
 
@@ -103,20 +111,40 @@ impl Unit {
     /// Whether this Unit has run out -- 0 health, or struck by Poisonous.
     ///
     /// Dying is not dead. A Unit that runs out in one Beat stands there for the
-    /// rest of it and dies at the top of the next one, which is the whole of the
-    /// departure on death timing. Only the Action Phase clears it.
+    /// rest of it and dies at the top of the next one. Only the Action Phase
+    /// clears it.
     pub fn is_dying(&self) -> bool {
         self.poisoned || self.health <= 0
     }
+
+    /// Whether this Unit still means to act.
+    pub fn holds_intent(&self) -> bool {
+        self.intents > 0
+    }
+
+    /// How many Intents this Unit takes when the Board renews them. Windfury is
+    /// exactly this: a Unit that means to act twice where others mean to act
+    /// once.
+    pub fn intents_renewed(&self) -> u32 {
+        if self.has(Keyword::Windfury) { 2 } else { 1 }
+    }
+
+    /// Give this Unit its Intents back.
+    pub fn renew_intents(&mut self) {
+        self.intents = self.intents_renewed();
+    }
+
+    /// Spend one Intent. Acting is spending it, whether or not the act lands.
+    pub fn spend_intent(&mut self) {
+        self.intents = self.intents.saturating_sub(1);
+    }
 }
 
-/// The Units a Player brings, in the Slots they occupy.
+/// The Units one side brings to the Board, in the Slots they occupy.
 ///
-/// **Invariant, at Pass boundaries:** Units are packed to the left with no
-/// interior gaps -- board logic anchors on the left-most position. A death
-/// punches a hole that stays open for the rest of the Pass, and
-/// [`Party::compact`] closes it only once that Pass ends, so that a Unit which
-/// has already acted cannot slide into a Slot the clock has yet to reach.
+/// **Invariant:** Units are packed to the left with no interior gaps -- board
+/// logic anchors on the left-most position. Taking a Unit out opens a hole, and
+/// [`Party::compact`] closes it; the Action Phase does both in the same Beat.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Party {
     slots: [Option<Unit>; SLOTS],
@@ -177,9 +205,6 @@ impl Party {
     }
 
     /// The Slots immediately left and right of `slot` that hold a Unit.
-    ///
-    /// Adjacency is Slot arithmetic, not a spatial query -- which is only true
-    /// because a Party holds still for the length of a Pass.
     pub fn neighbours(&self, slot: usize) -> Vec<usize> {
         let mut out = Vec::with_capacity(2);
         if slot > 0 && self.get(slot - 1).is_some() {
@@ -326,8 +351,11 @@ mod tests {
         let mut p =
             Party::from_units(vec![unit("a", 1, 1), unit("b", 1, 1), unit("c", 1, 1)]).unwrap();
         p.take(1);
-        assert!(!p.is_packed(), "a hole is expected mid-Pass");
-        assert!(p.get(2).is_some(), "Slot 2 holds still while the Pass runs");
+        assert!(!p.is_packed(), "taking a Unit opens a hole");
+        assert!(
+            p.get(2).is_some(),
+            "and leaves the Units past it where they were"
+        );
 
         p.compact();
         assert!(p.is_packed());

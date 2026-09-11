@@ -12,7 +12,7 @@
 //! single Unit, or use Taunt, and hold for every seed rather than a lucky one. A
 //! handful seed the Rng explicitly to pin down the targeting mechanics themselves.
 
-use bg_sim::action_phase::{Event, MAX_PASSES, Outcome, Resolution, board_of, resolve};
+use bg_sim::action_phase::{Event, MAX_BEATS, Outcome, Resolution, board_of, resolve};
 use bg_sim::party::{Side, Unit};
 use bg_sim::rng::{Domain, Rng, Seed};
 use bg_sim::units::{DefId, Keyword, UnitDef};
@@ -51,15 +51,15 @@ fn count_events<'a>(
     log.into_iter().filter(|e| pred(e)).count()
 }
 
-/// The log split into the Beats that held it, as `((pass, beat), events)`.
+/// The log split into its Beats, as `(beat, events)`.
 ///
 /// A Beat is the unit of resolution, so most assertions here are about what
 /// shared one and what did not.
-fn beats(r: &Resolution) -> Vec<((u32, u32), Vec<&Event>)> {
-    let mut out: Vec<((u32, u32), Vec<&Event>)> = Vec::new();
+fn beats(r: &Resolution) -> Vec<(u32, Vec<&Event>)> {
+    let mut out: Vec<(u32, Vec<&Event>)> = Vec::new();
     for event in &r.log {
         match event {
-            Event::BeatBegan { pass, beat } => out.push(((*pass, *beat), Vec::new())),
+            Event::BeatBegan { beat } => out.push((*beat, Vec::new())),
             _ => {
                 if let Some(current) = out.last_mut() {
                     current.1.push(event);
@@ -154,9 +154,9 @@ fn both_sides_act_in_one_beat_and_the_slots_resolve_in_order() {
         &mut rng(),
     );
     let b = beats(&r);
-    assert_eq!(b[0].0, (1, 1));
+    assert_eq!(b[0].0, 1);
     assert_eq!(attackers(&b[0].1), [(Side::Player, 1), (Side::Opposing, 1)]);
-    assert_eq!(b[1].0, (1, 2));
+    assert_eq!(b[1].0, 2);
     assert_eq!(attackers(&b[1].1), [(Side::Player, 2), (Side::Opposing, 2)]);
 }
 
@@ -254,76 +254,88 @@ fn a_unit_that_ran_out_answers_in_its_own_beat_but_never_attacks_again() {
 }
 
 // ---------------------------------------------------------------------------
-// The clock: a Pass sweeps the Slots, and ranks close between Passes
+// The clock: Intents, and closing ranks the moment a hole opens
 // ---------------------------------------------------------------------------
 
-/// A Player Party whose Slot-2 Unit ("b", Taunt, so it takes the killer's attack)
-/// runs out in Beat 1. Every Unit attacks, so every Slot is visible in the log.
-fn board_that_loses_its_slot_2_unit_in_beat_1() -> bg_sim::party::Board {
-    board_of(
-        vec![
-            plain("a", 1, 99),
-            u("b", 1, 1, &[Keyword::Taunt]),
-            plain("c", 1, 99),
-        ],
-        vec![plain("killer", 1, 99)],
-    )
-}
-
 #[test]
-fn passes_repeat_until_a_party_is_empty() {
-    // A single Pass would leave the 1/3 alive; health only means something
-    // because the clock comes back around.
+fn beats_keep_coming_until_a_party_is_empty() {
+    // The x has 3 health and takes 2 a cycle -- the chip's attack and its answer
+    // to the x's -- so it survives the first cycle. Health means something only
+    // because Intents renew.
     let r = resolve(
         board_of(vec![plain("chip", 1, 9)], vec![plain("x", 1, 3)]),
         &mut rng(),
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
     assert_eq!(
-        r.passes, 2,
-        "two blows a Beat -- the chip's attack and its answer to the x's -- so a \
-         3-health Unit falls in two Passes, not three"
+        r.beats, 3,
+        "two Beats of fighting, and a third to bury the x"
     );
 }
 
 #[test]
-fn a_death_leaves_its_slot_empty_until_the_pass_ends() {
-    let r = resolve(board_that_loses_its_slot_2_unit_in_beat_1(), &mut rng());
+fn a_party_closes_ranks_in_the_beat_that_buries_its_dead() {
+    // "b" holds Taunt, so it takes the killer's attack in Beat 1 and runs out.
+    // Beat 2 buries it and closes the hole in the same breath -- and "c", which
+    // has not spent its Intent, acts from the Slot it just slid into.
+    let r = resolve(
+        board_of(
+            vec![
+                plain("a", 1, 99),
+                u("b", 1, 1, &[Keyword::Taunt]),
+                plain("c", 1, 99),
+            ],
+            vec![plain("killer", 1, 99)],
+        ),
+        &mut rng(),
+    );
     let b = beats(&r);
     assert!(
         b[1].1
             .iter()
             .any(|e| matches!(e, Event::Died { slot: 2, .. })),
-        "b is buried when Beat 2 opens"
+        "b is buried at the top of Beat 2"
+    );
+    assert!(
+        b[1].1
+            .iter()
+            .any(|e| matches!(e, Event::Compacted { side: Side::Player })),
+        "and the Party re-anchors in that same Beat"
     );
     assert_eq!(
-        attackers(&b[2].1),
-        [(Side::Player, 3)],
-        "c attacks from Slot 3 still: the hole b left stays open for the rest of \
-         the Pass, and nothing slides under the clock"
+        attackers(&b[1].1),
+        [(Side::Player, 2)],
+        "c slid from Slot 3 to Slot 2 and acts from there: sliding neither skips \
+         a Unit nor gives it a second go, because the Intent rides on the Unit"
     );
 }
 
 #[test]
-fn a_party_closes_ranks_between_passes() {
-    let r = resolve(board_that_loses_its_slot_2_unit_in_beat_1(), &mut rng());
+fn a_unit_that_already_acted_does_not_act_again_after_sliding() {
+    // The counterpart hazard. "a" acts in Beat 1 and spends its Intent; when "b"
+    // is buried and "c" slides up behind it, the clock must still reach c rather
+    // than re-reading a Slot a spent Unit now occupies.
+    let r = resolve(
+        board_of(
+            vec![
+                plain("a", 1, 99),
+                u("b", 1, 1, &[Keyword::Taunt]),
+                plain("c", 1, 99),
+            ],
+            vec![plain("killer", 1, 99)],
+        ),
+        &mut rng(),
+    );
     let b = beats(&r);
-    assert!(
-        !b.iter()
-            .filter(|((pass, _), _)| *pass == 1)
-            .any(|(_, events)| events.iter().any(|e| matches!(e, Event::Compacted { .. }))),
-        "ranks do not close on the death that opened the hole"
-    );
-    assert_eq!(b[3].0, (2, 1));
     assert_eq!(
-        b[3].1,
-        [&Event::Compacted { side: Side::Player }],
-        "the Pass opens on a Beat that closes ranks and does nothing else"
+        attackers(&b[0].1),
+        [(Side::Player, 1), (Side::Opposing, 1)],
+        "a acts in Beat 1"
     );
     assert_eq!(
-        attackers(&b[5].1),
+        attackers(&b[1].1),
         [(Side::Player, 2)],
-        "c attacks from Slot 2 now"
+        "and not again in Beat 2, even though Slot 1 is still where it stands"
     );
 }
 
@@ -363,11 +375,11 @@ fn taunt_stops_applying_once_its_holder_dies() {
         ),
         &mut rng(),
     );
-    // Both are 1 health and only "spear" ever attacks: the wall runs out in the
-    // first Pass, and squishy -- no longer protected, and moved up by closing
-    // ranks -- in the second.
+    // Both are 1 health and only "spear" ever attacks. The wall runs out first;
+    // squishy -- no longer protected, and moved up by closing ranks -- takes the
+    // next attack the spear has an Intent for.
     assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.passes, 2);
+    assert_eq!(r.beats, 4);
 }
 
 // ---------------------------------------------------------------------------
@@ -387,7 +399,7 @@ fn an_attack_with_nothing_left_to_target_does_not_land() {
         &mut rng(),
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.passes, 1);
+    assert_eq!(r.beats, 2, "one Beat to strike, one to bury");
     assert_eq!(
         count_events(&r.log, |e| matches!(
             e,
@@ -579,9 +591,9 @@ fn a_shield_spends_itself_on_the_first_blow_and_the_second_lands() {
 #[test]
 fn windfury_attacks_again_in_a_beat_of_its_own() {
     // The x takes 3 from the attack and 3 more answering gusty in Beat 1, and the
-    // Windfury Beat's 3 is what finishes it -- 9 in a Pass where a Unit without
-    // Windfury would manage 6. The two attacks are two Beats, because
-    // Battlegrounds clears the dead between them.
+    // second Intent's 3 finishes it -- 9 where a Unit without Windfury would
+    // manage 6. The two attacks fall in two Beats, because Battlegrounds clears
+    // the dead between them.
     let r = resolve(
         board_of(
             vec![u("gusty", 3, 9, &[Keyword::Windfury])],
@@ -590,7 +602,7 @@ fn windfury_attacks_again_in_a_beat_of_its_own() {
         &mut rng(),
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.passes, 1);
+    assert_eq!(r.beats, 3);
     let b = beats(&r);
     assert_eq!(attackers(&b[0].1), [(Side::Player, 1), (Side::Opposing, 1)]);
     assert_eq!(
@@ -688,7 +700,7 @@ fn a_divine_shield_absorbs_one_blow_entirely() {
         1
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.passes, 2, "the shield bought exactly one Pass");
+    assert_eq!(r.beats, 3, "the shield bought exactly one cycle of Intents");
 }
 
 #[test]
@@ -704,7 +716,10 @@ fn windfury_breaks_a_divine_shield_and_then_connects() {
         &mut rng(),
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.passes, 1, "shield broken and the Unit killed in one Pass");
+    assert_eq!(
+        r.beats, 2,
+        "shield broken and the Unit killed before Intents renewed"
+    );
     assert_eq!(
         count_events(&r.log, |e| matches!(e, Event::ShieldAbsorbed { .. })),
         1
@@ -721,7 +736,7 @@ fn poisonous_kills_whatever_it_wounds() {
         &mut rng(),
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.passes, 1);
+    assert_eq!(r.beats, 2, "one Beat to poison, one to bury");
     assert!(
         r.log
             .iter()
@@ -741,7 +756,7 @@ fn a_divine_shield_stops_poison_because_no_damage_lands() {
         ),
         &mut rng(),
     );
-    assert_eq!(r.passes, 2, "survived the first Pass entirely");
+    assert_eq!(r.beats, 3, "survived the first blow entirely");
     assert_eq!(r.outcome, Outcome::PlayerWins);
 }
 
@@ -760,7 +775,7 @@ fn reborn_returns_a_unit_once_with_one_health() {
         "Reborn is spent, not repeated"
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
-    assert_eq!(r.passes, 2, "died, returned with 1 health, died again");
+    assert_eq!(r.beats, 3, "died, returned with 1 health, died again");
 }
 
 #[test]
@@ -794,28 +809,35 @@ fn reborn_returns_a_unit_in_the_beat_that_buries_it() {
 fn two_empty_parties_are_a_draw() {
     let r = resolve(board_of(vec![], vec![]), &mut rng());
     assert_eq!(r.outcome, Outcome::Draw);
-    assert_eq!(r.passes, 0);
+    assert_eq!(r.beats, 0);
 }
 
 #[test]
 fn an_empty_party_loses_immediately() {
     let r = resolve(board_of(vec![], vec![plain("x", 1, 1)]), &mut rng());
     assert_eq!(r.outcome, Outcome::OpposingWins);
-    assert_eq!(r.passes, 0);
+    assert_eq!(r.beats, 0);
 }
 
 #[test]
 fn units_that_cannot_hurt_each_other_reach_a_stalemate() {
     // Without the cap this would run forever. Non-termination is reported
-    // rather than hung on. Nothing happens in any Beat, so no Beat is logged:
-    // the whole fight is its own ending.
+    // rather than hung on. Both Units spend their Intent every Beat and neither
+    // has an attack to make, so the Beats run empty right up to the cap.
     let r = resolve(
         board_of(vec![plain("rock", 0, 5)], vec![plain("stone", 0, 5)]),
         &mut rng(),
     );
     assert_eq!(r.outcome, Outcome::Stalemate);
-    assert_eq!(r.passes, MAX_PASSES);
-    assert_eq!(r.log.len(), 1, "an empty Beat is not a Beat");
+    assert_eq!(r.beats, MAX_BEATS);
+    assert_eq!(
+        count_events(&r.log, |e| !matches!(
+            e,
+            Event::BeatBegan { .. } | Event::Ended { .. }
+        )),
+        0,
+        "nothing happened in any of them"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -829,9 +851,9 @@ fn the_log_ends_by_stating_the_outcome() {
         &mut rng(),
     );
     match r.log.last() {
-        Some(Event::Ended { outcome, passes }) => {
+        Some(Event::Ended { outcome, beats }) => {
             assert_eq!(*outcome, Outcome::PlayerWins);
-            assert_eq!(*passes, r.passes);
+            assert_eq!(*beats, r.beats);
         }
         other => panic!("expected the log to end with Ended, found {other:?}"),
     }
@@ -847,7 +869,7 @@ fn the_log_narrates_as_readable_lines() {
         &mut rng(),
     );
     let text = r.narrate();
-    assert!(text.contains("pass 1, beat 1"), "{text}");
+    assert!(text.contains("beat 1"), "{text}");
     assert!(text.contains("shield"), "{text}");
     assert!(text.contains("PlayerWins"), "{text}");
     assert_eq!(
