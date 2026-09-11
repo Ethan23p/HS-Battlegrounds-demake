@@ -114,3 +114,8 @@ Given directly:
 > I'd like to concept out some sort of internal physics - possibly with conservation of
 > energy such that "going infinite" is far less feasible than in Battlegrounds. I haven't
 > decided on the details, but they shouldn't be blocking yet;
+
+**Q: Earlier you described three correlated resources (economy, power, units) with bounded conservation. Is that the same thing as the "internal physics / conservation of energy" idea you just mentioned, or are they separate?**
+
+> the resources discussion was the same thread of thought, but I'd rather discard that
+> and leave it at what I stated in the previous message
