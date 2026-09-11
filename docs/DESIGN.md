@@ -21,14 +21,14 @@ explicit design decisions are immortalized and used as guidance.
 
 ### Initial
 
-Given directly, not through the question loop:
+Given directly:
 
 - Data-oriented, highly configurable
 - Deep back-end, shallow front-end
 - Rust back-end
 - Seeded RNG
 
-**Q: You mentioned wanting matches to be asynchronous — offline play, an unbounded prep phase, opponent drawn at random from a pool when you end your turn. Is that still the model, and what does it look like end to end?**
+**Q: Is asynchronous play still the model?**
 
 > design decision: gameplay is offline, single player by obligation; if I get to develop
 > this into a full product, it will probably be distantly similar to Battlegrounds, more
@@ -43,7 +43,7 @@ Given directly, not through the question loop:
 >
 > This isn't a feature/departure, just makes it in for clarification.
 
-#### Departure 1 — beats
+#### Beats
 
 **Q: What's the first departure from Battlegrounds you want to talk about — what is it, and how does it work?**
 
@@ -59,7 +59,7 @@ Given directly, not through the question loop:
 > arbitrary number of interactions we choose; nonetheless, most beats involve one
 > interaction.
 
-#### Departure 2 — death-resolution timing
+#### Death-resolution timing
 
 **Q: When a unit dies mid-beat, when does its death actually take effect?**
 
@@ -70,21 +70,21 @@ Given directly, not through the question loop:
 > Beat B
 > unit Charlie dies, triggering their 'on death'
 
-#### Departure 3 — keywords
+#### Keywords
 
 **Q: Which keywords are in, and does any of them work differently than it does in Battlegrounds?**
 
 > Same as Battlegrounds — Taunt, Divine Shield, Poisonous, Windfury, Reborn, and Rally
 > (Rally is from the latest season, it's basically 'on attack') all unchanged
 
-#### Departure 4 — abilities-as-data
+#### Abilities-as-data
 
 **Q: How should a card's abilities be represented — what does defining a new one look like?**
 
 > not cards but units - keep it simple, data-driven; more complex than that will have to
 > be a dedicated discussion
 
-#### Departure 5 — board size & anchoring
+#### Board size & anchoring
 
 Given directly:
 
@@ -94,7 +94,7 @@ Given directly:
 > energy such that "going infinite" is far less feasible than in Battlegrounds. I haven't
 > decided on the details, but they shouldn't be blocking yet;
 
-**Q: Earlier you described three correlated resources (economy, power, units) with bounded conservation. Is that the same thing as the "internal physics / conservation of energy" idea you just mentioned, or are they separate?**
+*Asked whether an earlier sketch of three correlated resources was the same idea:*
 
 > the resources discussion was the same thread of thought, but I'd rather discard that
 > and leave it at what I stated in the previous message
@@ -107,8 +107,8 @@ the full implications of the quotation; the quotations are Ethan's.
 #### The board is the environment
 
 *Claude asked whether to rename `Board` and `Party` in the code, having noticed that
-Departure 5 says "the typical board is 8 slots" while the code used `Board` for both
-sides at once and `Party` for one side's eight slots.*
+"Board size & anchoring" says "the typical board is 8 slots" while the code used
+`Board` for both sides at once and `Party` for one side's eight slots.*
 ([0005](transcripts/0005-the-fresh-start-and-the-intent-clock.md))
 
 > a board is the environment, with two opposing parties on it, parties consisting of
