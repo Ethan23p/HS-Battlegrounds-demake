@@ -145,6 +145,24 @@ The noise-detection rules live in the constants right below the imports
 person to touch this script can tune them in one place without reading
 the rest of the code.
 
+EXPORTING PART OF A SESSION
+----------------------------
+--from-line/--to-line restrict the export to a range of raw JSONL lines,
+which is how one session id becomes two documents when it holds two eras
+of work (a /clear, a change of subject, a project restart). The range is
+recorded in the front matter as source_span.
+
+Raw line numbers are the unit because they are the only numbering that
+does not move: the log is append-only, so a line keeps its number for the
+life of the session no matter what the renderer later filters out. Two
+exports whose ranges are contiguous and non-overlapping therefore contain
+between them exactly what one unranged export contains -- which is worth
+verifying directly when splitting something you intend to keep.
+
+Choosing *where* to cut is a judgement call and stays outside this script.
+Nothing here knows what a boundary means; find the line by reading the
+log, then say so with --from-line/--to-line.
+
 LIMITATIONS (known, deliberate)
 --------------------------------
   - Subagent transcripts (subagents/*.jsonl) are not walked or merged in;
@@ -260,6 +278,8 @@ TRUNCATE_LEN = 100  # for --include-tools one-line summaries
 
 class Stats:
     def __init__(self) -> None:
+        self.span_first = 1
+        self.span_last = 0
         self.lines_total = 0
         self.lines_parse_errors = 0
         self.lines_skipped_type = 0
@@ -703,6 +723,7 @@ def build_front_matter(session_path: Path, session_id: str, stats: Stats, includ
         f"session_id: {session_id}",
         f"export_date: {now}",
         f"source_path: {session_path}",
+        f"source_span: lines {stats.span_first}-{stats.span_last}",
         f"include_tools: {str(include_tools).lower()}",
         "message_counts:",
         f"  lines_total: {stats.lines_total}",
@@ -721,10 +742,23 @@ def build_front_matter(session_path: Path, session_id: str, stats: Stats, includ
     return "\n".join(lines)
 
 
-def load_events(path: Path, stats: Stats) -> list[dict]:
+def load_events(path: Path, stats: Stats, first_line: int = 1, last_line: int | None = None) -> list[dict]:
+    """Parse the raw JSONL, restricted to the 1-based line range [first_line, last_line].
+
+    The range is over raw file lines, which is the one numbering that does not move:
+    the log is append-only, so a line keeps its number for the life of the session,
+    whatever the renderer later decides to filter. `last_line` of None means read to EOF.
+    """
     events: list[dict] = []
+    stats.span_first = first_line
+    stats.span_last = first_line - 1
     with path.open("r", encoding="utf-8", errors="replace") as f:
-        for raw_line in f:
+        for line_no, raw_line in enumerate(f, start=1):
+            if line_no < first_line:
+                continue
+            if last_line is not None and line_no > last_line:
+                break
+            stats.span_last = line_no
             raw_line = raw_line.strip()
             if not raw_line:
                 continue
@@ -767,7 +801,26 @@ def main() -> None:
         "--project-dir",
         help="Override the ~/.claude/projects/<mangled-cwd> directory to look in.",
     )
+    parser.add_argument(
+        "--from-line",
+        type=int,
+        default=1,
+        metavar="N",
+        help="First raw JSONL line to export, 1-based and inclusive. Default: the first.",
+    )
+    parser.add_argument(
+        "--to-line",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Last raw JSONL line to export, inclusive. Default: the last.",
+    )
     args = parser.parse_args()
+
+    if args.from_line < 1:
+        parser.error("--from-line must be 1 or greater")
+    if args.to_line is not None and args.to_line < args.from_line:
+        parser.error("--to-line must not be less than --from-line")
 
     project_dir = default_project_dir(args.project_dir)
 
@@ -779,7 +832,7 @@ def main() -> None:
     session_id = session_path.stem
 
     stats = Stats()
-    events = load_events(session_path, stats)
+    events = load_events(session_path, stats, args.from_line, args.to_line)
     body = render_transcript(events, stats, include_tools=args.include_tools)
     front_matter = build_front_matter(session_path, session_id, stats, args.include_tools)
 

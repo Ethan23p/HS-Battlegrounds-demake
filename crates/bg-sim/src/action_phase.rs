@@ -1,61 +1,71 @@
-//! The Action Phase: Battlegrounds' attack order, resolved simultaneously.
+//! The Action Phase: two Parties fight on the Board, resolved in Beats.
 //!
-//! See [ADR 0008](../../../docs/adr/0008-targeting-is-random-simultaneity-is-the-only-delta.md)
-//! and [ADR 0009](../../../docs/adr/0009-the-party-is-left-anchored.md). Given the same
-//! two Parties and the same Rng state, this always produces the same Resolution.
+//! See `docs/DESIGN.md`. Given the same Board and the same Rng state, this always
+//! produces the same Resolution.
 //!
-//! **A Beat is a time-step**, not a turn anybody takes. The clock runs in Passes of nine
-//! Beats:
+//! **A Beat is a container of interactions, and Beats are the only clock.** There
+//! is no round, no turn, no sweep of the Slots. Every Beat is the same four
+//! things, each of them a question asked of the Board rather than a step in a
+//! schedule:
 //!
-//! - **Beat 0** closes ranks: both Parties re-anchor on their left-most Unit.
-//! - **Beats 1 through 8** are Slots 1 through 8. In Beat *n*, the Unit standing in Slot
-//!   *n* acts -- on both sides at once, which is the one delta from Battlegrounds'
-//!   resolution. Nobody swings first. An empty Slot simply has nobody to act.
+//! 1. **Settle what the last Beat did.** A Unit that reached 0 health does not
+//!    die in the Beat that took it there; it dies at the top of the next one. So
+//!    a fatally wounded Unit still acts for the rest of the Beat it ran out in.
+//!    A Divine Shield that absorbed something breaks here for the same reason.
+//! 2. **Close ranks.** Each Party re-anchors on its left-most Unit, closing the
+//!    hole the burial left.
+//! 3. **Renew Intents, if nobody holds one.** An Intent is a Unit's claim on a
+//!    future Beat. Running out of them across the whole Board is how the clock
+//!    knows everyone has had their go -- nothing counts rounds.
+//! 4. **Act.** The left-most Unit on each side still holding an Intent spends it,
+//!    on both sides in this one Beat. There is no first swing to have, so a
+//!    mirror is a mutual kill.
 //!
-//! **The delta is one sentence: ordering grants no advantage.** Battlegrounds picks a
-//! side to swing first, and in a mirror that side wins; here Slot *n* acts on both sides
-//! in the same Beat, so there is no first swing to have. Everything else in this module
-//! is Battlegrounds' own rule, and where simultaneity leaves Battlegrounds with nothing
-//! to say, the tie-break is chosen to be one no ordering could change.
+//! Both halves of that are design, not convenience. Both sides act in the same
+//! Beat because neither is owed an ordering advantage -- Battlegrounds settles
+//! that with a coin flip, and this does not. But only one Unit per side acts,
+//! rather than the whole Party at once, because a fight is meant to read as a
+//! narrative proceeding singularly. A Beat is how time is sliced; what shares one
+//! is concurrent, and nothing in a Beat may depend on the order the engine walks
+//! the Board.
 //!
-//! - **An attack is an exchange.** The attacker deals its attack to its target and the
-//!   target deals its attack back, in the same instant. That is Battlegrounds, and it is
-//!   what makes health, Taunt and Poisonous mean anything on a Unit that is not currently
-//!   swinging.
-//! - Targeting is **random** among the defending Party's living Units, unless that Party
+//! Whose Beat it is therefore lives on the Unit, as [`Unit::intents`], and not in
+//! a cursor walking the Slots. That is what lets a Party close ranks the instant a
+//! hole opens: a Unit carries its Intents with it when it slides, so sliding can
+//! neither skip it nor give it a second go.
+//!
+//! Windfury is not a special case in here. It is a Unit that renews two Intents
+//! where others renew one, so after acting it is still the left-most holder and
+//! acts again in the very next Beat -- with the dead buried in between, as
+//! Battlegrounds does it.
+//!
+//! Battlegrounds' own rules, unchanged:
+//!
+//! - Targeting is **random** among the defending Party's Units, unless that Party
 //!   holds a Taunt Unit, in which case the attack must land on a Taunt holder.
-//! - **Every attack is its own choosing of a target.** A Unit with Windfury attacks twice
-//!   in its Beat and draws again for the second, which may well be a different Unit.
-//! - Nothing ever attacks a Player. An attack with no living Unit left to target simply
-//!   does not land -- Hearthstone lets minions go face, Battlegrounds does not, and
-//!   damage-on-loss is a single end-of-fight calculation belonging to v0.2/v0.3, computed
-//!   from the survivors on [`Resolution::final_board`].
-//! - **Deaths resolve immediately after the attack that caused them**, as in
-//!   Battlegrounds. A Beat runs in *instances* -- one, or two for Windfury -- and an
-//!   instance is the indivisible unit: both sides declare, every blow is answered, all of
-//!   that damage lands together, then the instance's dead are removed. So a fatally
-//!   wounded Unit still lands the blow that killed it, and a Unit killed in instance 0
-//!   does not swing again in instance 1. Corpses never fight on.
-//! - Among an instance's dead, a Unit that **attacked** is removed after every one that
-//!   didn't, so a kill stays attributable to its attacker even when the trade was mutual.
-//!   Answering a blow is not attacking.
-//! - A death leaves its Slot empty for the rest of the Pass; the next Beat 0 closes it.
-//!   Nothing shifts under the clock while a Pass runs (ADR 0009).
-//! - Passes repeat until a Party empties, or [`MAX_PASSES`] is reached.
+//!   Every attack draws its own target.
+//! - **An attack is answered**: the Unit struck deals its own attack back in the
+//!   same motion, which is what makes health, Taunt and Poisonous mean anything
+//!   on a Unit that is not the one swinging. Answering is not attacking -- it
+//!   draws no target and spends no Intent.
+//! - Nothing ever attacks a Player. An attack with nothing left to target does
+//!   not land; damage-on-loss is an end-of-fight calculation over
+//!   [`Resolution::final_board`], and is not this module's yet.
+//! - Beats run until a Party empties, or [`MAX_BEATS`] is reached.
 //!
-//! Slots are numbered **1 through 8** in the rules, in this log, and in every Event
-//! below. The array index behind a Slot is zero-based, and only this module knows it.
+//! Slots are numbered 1 through 8 in the rules and in every Event below. The
+//! array index behind a Slot is zero-based, and only this module knows it.
 
 use crate::party::{Board, Party, SLOTS, Side, Unit};
 use crate::rng::Rng;
 use crate::units::{DefId, Keyword};
 
-/// Passes after which an unresolved Action Phase is declared a stalemate.
+/// Beats after which an unresolved Action Phase is declared a stalemate.
 ///
 /// Two Parties that cannot kill each other -- all zero-attack, say -- would
 /// otherwise run forever. The cap makes non-termination a reported outcome
 /// rather than a hang.
-pub const MAX_PASSES: u32 = 64;
+pub const MAX_BEATS: u32 = 512;
 
 /// The Slot number a zero-based index stands for. Slots count from 1.
 fn slot_no(index: usize) -> u32 {
@@ -69,7 +79,7 @@ pub enum Outcome {
     OpposingWins,
     /// Both Parties emptied together.
     Draw,
-    /// Neither Party could finish the other within [`MAX_PASSES`].
+    /// Neither Party could finish the other within [`MAX_BEATS`].
     Stalemate,
 }
 
@@ -80,31 +90,23 @@ pub enum Outcome {
 /// without reaching into engine internals. Every Slot number here counts from 1.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
-    /// Beat 0 of a Pass: this Party closed ranks. Logged only when it actually
+    /// A Beat, numbered from 1. Every Beat is logged, including ones in which
+    /// nothing else happened, so that a Beat number is the time it says it is.
+    BeatBegan {
+        beat: u32,
+    },
+    /// This Party re-anchored on its left-most Unit. Logged only when it actually
     /// moved something.
     Compacted {
-        pass: u32,
         side: Side,
-    },
-    /// A Beat in which somebody stands to act. `beat` is the Slot it resolves,
-    /// so Beat 3 is Slot 3; Beat 0 is the compaction step and never appears
-    /// here. Beats with both Slots empty are not logged -- nothing happened.
-    BeatBegan {
-        pass: u32,
-        beat: u32,
     },
     Struck {
         by: Side,
         attacker_slot: u32,
         target_slot: u32,
         damage: i32,
-        /// Which attack of the Beat this was, counting from 0. Non-zero means
-        /// Windfury -- and a target drawn afresh.
-        instance: u32,
     },
-    /// A defender answering the blow it was struck by, in the same instant. Not
-    /// an attack: it draws no target, and it does not make the defender an
-    /// attacker for the purpose of who is removed last.
+    /// A defender answering the blow it was struck by, in the same motion.
     StruckBack {
         by: Side,
         slot: u32,
@@ -115,6 +117,7 @@ pub enum Event {
         side: Side,
         slot: u32,
     },
+    /// A Unit that ran out in the previous Beat, dying at the top of this one.
     Died {
         side: Side,
         slot: u32,
@@ -130,7 +133,7 @@ pub enum Event {
     },
     Ended {
         outcome: Outcome,
-        passes: u32,
+        beats: u32,
     },
 }
 
@@ -141,40 +144,32 @@ impl std::fmt::Display for Event {
     /// the engine keeps its promise not to print.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Event::Compacted { side, .. } => {
+            Event::BeatBegan { beat } => write!(f, "-- beat {beat} --"),
+            Event::Compacted { side } => {
                 write!(f, "  the {} party closes ranks", side.name())
-            }
-            Event::BeatBegan { pass, beat } => {
-                write!(f, "-- pass {pass}, beat {beat} --")
             }
             Event::Struck {
                 by,
                 attacker_slot,
                 target_slot,
                 damage,
-                instance,
-            } => {
-                let again = if *instance > 0 { " again" } else { "" };
-                write!(
-                    f,
-                    "  {} slot {attacker_slot} strikes{again} {} slot {target_slot} for {damage}",
-                    by.name(),
-                    by.other().name()
-                )
-            }
+            } => write!(
+                f,
+                "  {} slot {attacker_slot} strikes {} slot {target_slot} for {damage}",
+                by.name(),
+                by.other().name()
+            ),
             Event::StruckBack {
                 by,
                 slot,
                 target_slot,
                 damage,
-            } => {
-                write!(
-                    f,
-                    "  {} slot {slot} strikes back at {} slot {target_slot} for {damage}",
-                    by.name(),
-                    by.other().name()
-                )
-            }
+            } => write!(
+                f,
+                "  {} slot {slot} strikes back at {} slot {target_slot} for {damage}",
+                by.name(),
+                by.other().name()
+            ),
             Event::ShieldAbsorbed { side, slot } => {
                 write!(f, "  {} slot {slot} absorbs it on its shield", side.name())
             }
@@ -188,15 +183,13 @@ impl std::fmt::Display for Event {
                 let how = if *poisoned { " (poisoned)" } else { "" };
                 write!(f, "  {} {name} in slot {slot} dies{how}", side.name())
             }
-            Event::Reborn { side, slot, name } => {
-                write!(
-                    f,
-                    "  {} {name} returns in slot {slot} with 1 health",
-                    side.name()
-                )
-            }
-            Event::Ended { outcome, passes } => {
-                write!(f, "== {outcome:?} after {passes} passes ==")
+            Event::Reborn { side, slot, name } => write!(
+                f,
+                "  {} {name} returns in slot {slot} with 1 health",
+                side.name()
+            ),
+            Event::Ended { outcome, beats } => {
+                write!(f, "== {outcome:?} after {beats} beats ==")
             }
         }
     }
@@ -206,12 +199,12 @@ impl std::fmt::Display for Event {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Resolution {
     pub outcome: Outcome,
-    /// Passes entered, counting from 1. A fight decided before anyone acted ran
-    /// none.
-    pub passes: u32,
+    /// Beats run, counting from 1. A fight decided before anyone acted ran none.
+    pub beats: u32,
     pub log: Vec<Event>,
-    /// The Board as it stood when the Action Phase ended. The winner's survivors
-    /// are what a damage-on-loss calculation will read, once Health exists.
+    /// The Board as it stood when the Action Phase ended, left-anchored. The
+    /// winner's survivors are what a damage-on-loss calculation will read, once
+    /// it exists.
     pub final_board: Board,
 }
 
@@ -232,50 +225,42 @@ impl Resolution {
 /// equal Resolutions.
 pub fn resolve(mut board: Board, rng: &mut Rng) -> Resolution {
     let mut log = Vec::new();
-    let mut pass = 0u32;
+    let mut beats = 0u32;
 
     let outcome = loop {
         if let Some(outcome) = decide(&board) {
             break outcome;
         }
-        if pass >= MAX_PASSES {
+        if beats >= MAX_BEATS {
             break Outcome::Stalemate;
         }
-        pass += 1;
+        beats += 1;
+        log.push(Event::BeatBegan { beat: beats });
 
-        // Beat 0.
-        close_ranks(&mut board.player, pass, Side::Player, &mut log);
-        close_ranks(&mut board.opposing, pass, Side::Opposing, &mut log);
-
-        // Beats 1 through 8: Beat n resolves Slot n, on both sides at once.
-        for index in 0..SLOTS {
-            if decide(&board).is_some() {
-                break;
-            }
-            if board.player.get(index).is_none() && board.opposing.get(index).is_none() {
-                continue;
-            }
-            log.push(Event::BeatBegan {
-                pass,
-                beat: slot_no(index),
-            });
-            resolve_beat(&mut board, index, rng, &mut log);
+        bury_the_dead(&mut board, &mut log);
+        break_spent_shields(&mut board);
+        close_ranks(&mut board, &mut log);
+        if no_intents_left(&board) {
+            renew_intents(&mut board);
+        }
+        for transaction in declare(&mut board, rng) {
+            resolve_transaction(&mut board, &transaction, &mut log);
         }
     };
 
-    log.push(Event::Ended {
-        outcome,
-        passes: pass,
-    });
+    log.push(Event::Ended { outcome, beats });
     Resolution {
         outcome,
-        passes: pass,
+        beats,
         log,
         final_board: board,
     }
 }
 
 /// The outcome, if the Action Phase is over.
+///
+/// Reads Slots, not health: a Party whose Units have all run out is not empty
+/// until the Beat that buries them.
 fn decide(board: &Board) -> Option<Outcome> {
     match (board.player.is_empty(), board.opposing.is_empty()) {
         (true, true) => Some(Outcome::Draw),
@@ -285,127 +270,184 @@ fn decide(board: &Board) -> Option<Outcome> {
     }
 }
 
-/// Beat 0: re-anchor a Party on its left-most Unit, logging it only if anything
-/// moved. This is the only moment an Action Phase compacts, which is what holds
-/// Slots still under the clock for the length of a Pass (ADR 0009).
-fn close_ranks(party: &mut Party, pass: u32, side: Side, log: &mut Vec<Event>) {
-    if party.is_packed() {
-        return;
+/// Remove every Unit that ran out in the previous Beat, returning what has Reborn
+/// to spend.
+///
+/// Order here is Side then Slot and means nothing: these deaths all belong to the
+/// same Beat, and none of them can affect another.
+fn bury_the_dead(board: &mut Board, log: &mut Vec<Event>) {
+    for side in [Side::Player, Side::Opposing] {
+        for index in 0..SLOTS {
+            if board.side(side).get(index).is_some_and(Unit::is_dying) {
+                bury(board, side, index, log);
+            }
+        }
     }
-    party.compact();
-    log.push(Event::Compacted { pass, side });
 }
 
-/// One Beat: whoever stands in this Slot, on either side, acts -- and with
-/// Windfury, acts again.
-///
-/// A Beat runs in **instances**: one, or two for a Windfury Unit. The instance is
-/// the indivisible step. Within it both sides' Slot-`index` Unit declares its
-/// attack against the Board as it stood when the instance began, every blow is
-/// answered, all of that damage lands at once, and only then are the dead removed.
-///
-/// Nothing in that sequence can be changed by considering one side before the
-/// other, which is the whole of the delta: ordering grants no advantage.
-fn resolve_beat(board: &mut Board, index: usize, rng: &mut Rng, log: &mut Vec<Event>) {
-    let instances = [Side::Player, Side::Opposing]
-        .into_iter()
-        .filter_map(|side| board.side(side).get(index))
-        .map(Unit::actions_per_beat)
-        .max()
-        .unwrap_or(0);
+/// Remove one Unit and log it, returning it in place if it has Reborn to spend.
+fn bury(board: &mut Board, side: Side, index: usize, log: &mut Vec<Event>) {
+    let unit = board
+        .side_mut(side)
+        .take(index)
+        .expect("just observed as occupied");
+    log.push(Event::Died {
+        side,
+        slot: slot_no(index),
+        def: unit.def.clone(),
+        name: unit.name.clone(),
+        poisoned: unit.poisoned,
+    });
 
-    for instance in 0..instances {
-        let blows = declare(board, index, instance, rng);
-        if blows.is_empty() {
+    if unit.has(Keyword::Reborn) && !unit.reborn_spent {
+        let mut returned = unit;
+        returned.reborn_spent = true;
+        returned.keywords.remove(&Keyword::Reborn);
+        returned.health = 1;
+        returned.poisoned = false;
+        let name = returned.name.clone();
+        board.side_mut(side).put(index, returned);
+        log.push(Event::Reborn {
+            side,
+            slot: slot_no(index),
+            name,
+        });
+    }
+}
+
+/// Break every Divine Shield that absorbed something in the previous Beat.
+///
+/// Runs after the burial so a Unit brought back by Reborn does not carry a
+/// already-spent shield into this Beat.
+fn break_spent_shields(board: &mut Board) {
+    for side in [Side::Player, Side::Opposing] {
+        for index in 0..SLOTS {
+            if let Some(unit) = board.side_mut(side).get_mut(index)
+                && unit.shield_spent
+            {
+                unit.keywords.remove(&Keyword::DivineShield);
+                unit.shield_spent = false;
+            }
+        }
+    }
+}
+
+/// Re-anchor both Parties on their left-most Unit.
+fn close_ranks(board: &mut Board, log: &mut Vec<Event>) {
+    for side in [Side::Player, Side::Opposing] {
+        let party = board.side_mut(side);
+        if party.is_packed() {
             continue;
         }
-        for blow in &blows {
-            resolve_attack(board, blow, log);
-        }
-        let attackers: Vec<(Side, usize)> = blows.iter().map(|b| (b.by, b.attacker)).collect();
-        apply_deaths(board, &attackers, log);
+        party.compact();
+        log.push(Event::Compacted { side });
     }
+}
+
+/// Whether the Board has run out of Intents, which is what renews them.
+fn no_intents_left(board: &Board) -> bool {
+    [Side::Player, Side::Opposing]
+        .into_iter()
+        .flat_map(|side| board.side(side).iter())
+        .all(|(_, unit)| !unit.holds_intent())
+}
+
+/// Give every Unit on the Board its Intents back.
+fn renew_intents(board: &mut Board) {
+    for side in [Side::Player, Side::Opposing] {
+        for index in 0..SLOTS {
+            if let Some(unit) = board.side_mut(side).get_mut(index) {
+                unit.renew_intents();
+            }
+        }
+    }
+}
+
+/// The Unit acting for this Party: the left-most that still holds an Intent.
+fn next_actor(party: &Party) -> Option<usize> {
+    party
+        .iter()
+        .find(|(_, unit)| unit.holds_intent())
+        .map(|(index, _)| index)
 }
 
 /// One attack, drawn but not yet resolved. Who swung, and at whom.
 ///
-/// Targets for a whole instance are drawn before any of them resolve, so no
-/// attack can take a target away from another. That, and nothing else, is what
-/// stops one side's attack from pre-empting the other's.
-struct Blow {
+/// A Beat's attacks are all drawn before any of them resolves, so no attack can
+/// take a target away from the other.
+struct Transaction {
     by: Side,
     attacker: usize,
     defender: usize,
-    instance: u32,
 }
 
-/// Every attack of one instance, drawn against the Board as the instance found it.
+/// The attacks of one Beat: at most one per side.
 ///
-/// A Unit that cannot attack -- absent, dead, out of instances, or with no attack
-/// to deal -- draws nothing; Battlegrounds' zero-attack minions do not swing
-/// either. Nothing is logged here: an attack is narrated when it resolves.
-fn declare(board: &Board, index: usize, instance: u32, rng: &mut Rng) -> Vec<Blow> {
-    let mut blows = Vec::with_capacity(2);
-    for by in [Side::Player, Side::Opposing] {
-        let Some(attacker) = board.side(by).get(index) else {
-            continue;
-        };
-        if instance >= attacker.actions_per_beat() || attacker.is_dead() || attacker.attack <= 0 {
-            continue;
-        }
-        // An attack that finds nothing left standing does not land: no Unit in
-        // Battlegrounds attacks a Player.
-        let Some(defender) = select_target(rng, board.side(by.other())) else {
-            continue;
-        };
-        blows.push(Blow {
-            by,
-            attacker: index,
-            defender,
-            instance,
-        });
+/// Acting is spending the Intent, whether or not the act produces an attack. A
+/// Unit with nothing to attack with, or nothing left to attack, spends its Intent
+/// quietly -- which is what moves the clock on for Parties that cannot fight.
+///
+/// Nothing on the Board is dying at this point: the Beat opened by burying
+/// whatever ran out, so every Unit a target is drawn from will still be standing
+/// when the attacks land.
+fn declare(board: &mut Board, rng: &mut Rng) -> Vec<Transaction> {
+    let actors: Vec<(Side, usize)> = [Side::Player, Side::Opposing]
+        .into_iter()
+        .filter_map(|side| next_actor(board.side(side)).map(|index| (side, index)))
+        .collect();
+
+    for &(side, index) in &actors {
+        board
+            .side_mut(side)
+            .get_mut(index)
+            .expect("just found standing there")
+            .spend_intent();
     }
-    blows
+
+    actors
+        .into_iter()
+        .filter(|&(side, index)| board.side(side).get(index).is_some_and(|u| u.attack > 0))
+        .filter_map(|(by, attacker)| {
+            let defender = select_target(rng, board.side(by.other()))?;
+            Some(Transaction {
+                by,
+                attacker,
+                defender,
+            })
+        })
+        .collect()
 }
 
-/// A random living Unit in `party`, constrained to Taunt holders if any are alive.
-/// `None` means the Party has no living Unit left to target.
+/// A random Unit in `party`, constrained to Taunt holders if it has any.
+/// `None` means the Party has nothing left to target.
 fn select_target(rng: &mut Rng, party: &Party) -> Option<usize> {
-    let living: Vec<usize> = party
+    let taunts: Vec<usize> = party
         .iter()
-        .filter(|(_, unit)| !unit.is_dead())
+        .filter(|(_, unit)| unit.has(Keyword::Taunt))
         .map(|(index, _)| index)
         .collect();
-    if living.is_empty() {
-        return None;
+    if !taunts.is_empty() {
+        return rng.choose(&taunts).copied();
     }
-    let taunts: Vec<usize> = living
-        .iter()
-        .copied()
-        .filter(|&index| party.get(index).is_some_and(|u| u.has(Keyword::Taunt)))
-        .collect();
-    let pool = if taunts.is_empty() { &living } else { &taunts };
-    rng.choose(pool).copied()
+    let occupied: Vec<usize> = party.iter().map(|(index, _)| index).collect();
+    rng.choose(&occupied).copied()
 }
 
 /// One attack, resolved exactly as Battlegrounds resolves one.
 ///
-/// **An attack is a transaction, not a trade.** It has a direction: this Unit
-/// swings at that one, and the one struck answers with its own attack in the same
-/// motion. Two Units that chose each other in the same Beat are two transactions,
-/// each with its own attacker -- not one symmetrical meeting. Collapsing them
-/// would be reaching for "one action, one outcome," and it would quietly restore
-/// the pre-emption this Action Phase exists to remove: in Battlegrounds the second
-/// attack goes missing only because the first one killed its attacker first.
+/// An attack has a direction: this Unit swings at that one, and the one struck
+/// answers with its own attack in the same motion. Two Units that chose each
+/// other in the same Beat are two of these, each with its own attacker, not one
+/// symmetrical trade -- collapsing them would restore the pre-emption a Beat
+/// exists to remove.
 ///
-/// Both Units' attack is read before either blow lands, so the exchange within a
-/// transaction is genuinely mutual -- a Unit's answer is not weakened by the blow
-/// it is answering.
-fn resolve_attack(board: &mut Board, blow: &Blow, log: &mut Vec<Event>) {
-    let defending = blow.by.other();
+/// Both Units' attack is read before either blow lands, so a Unit's answer is not
+/// weakened by the blow it is answering.
+fn resolve_transaction(board: &mut Board, transaction: &Transaction, log: &mut Vec<Event>) {
+    let defending = transaction.by.other();
     let (Some(attacker), Some(defender)) = (
-        board.side(blow.by).get(blow.attacker),
-        board.side(defending).get(blow.defender),
+        board.side(transaction.by).get(transaction.attacker),
+        board.side(defending).get(transaction.defender),
     ) else {
         return;
     };
@@ -413,16 +455,15 @@ fn resolve_attack(board: &mut Board, blow: &Blow, log: &mut Vec<Event>) {
     let (answer, defender_poisons) = (defender.attack, defender.has(Keyword::Poisonous));
 
     log.push(Event::Struck {
-        by: blow.by,
-        attacker_slot: slot_no(blow.attacker),
-        target_slot: slot_no(blow.defender),
+        by: transaction.by,
+        attacker_slot: slot_no(transaction.attacker),
+        target_slot: slot_no(transaction.defender),
         damage: attack,
-        instance: blow.instance,
     });
     hit(
         board,
         defending,
-        blow.defender,
+        transaction.defender,
         attack,
         attacker_poisons,
         log,
@@ -431,20 +472,28 @@ fn resolve_attack(board: &mut Board, blow: &Blow, log: &mut Vec<Event>) {
     if answer > 0 {
         log.push(Event::StruckBack {
             by: defending,
-            slot: slot_no(blow.defender),
-            target_slot: slot_no(blow.attacker),
+            slot: slot_no(transaction.defender),
+            target_slot: slot_no(transaction.attacker),
             damage: answer,
         });
-        hit(board, blow.by, blow.attacker, answer, defender_poisons, log);
+        hit(
+            board,
+            transaction.by,
+            transaction.attacker,
+            answer,
+            defender_poisons,
+            log,
+        );
     }
 }
 
 /// Land one blow on one Unit.
 ///
 /// A Divine Shield absorbs it whole -- including its Poisonous, which needs damage
-/// to actually land. One blow, one shield: a Unit struck by two attacks in the same
-/// Beat spends its shield on the first and takes the second, which is Battlegrounds'
-/// rule and needs no help from ours.
+/// to actually land. The shield does not break here: it absorbs everything this
+/// Beat brings and breaks at the top of the next. Otherwise a Unit struck twice in
+/// one Beat would spend its shield on whichever blow the engine reached first,
+/// which would make the walk order of the Board worth something.
 fn hit(
     board: &mut Board,
     side: Side,
@@ -456,7 +505,8 @@ fn hit(
     let Some(unit) = board.side_mut(side).get_mut(index) else {
         return;
     };
-    if unit.keywords.remove(&Keyword::DivineShield) {
+    if unit.has(Keyword::DivineShield) {
+        unit.shield_spent = true;
         log.push(Event::ShieldAbsorbed {
             side,
             slot: slot_no(index),
@@ -465,71 +515,12 @@ fn hit(
     }
     unit.health -= damage;
     if poisonous {
-        unit.doomed = true;
-    }
-}
-
-/// Remove everything that died in this instance, resurrecting what has Reborn to
-/// spend.
-///
-/// A Unit that attacked in this instance is removed after every Unit that didn't,
-/// so a kill stays attributable to its attacker even in a mutual trade (ADR 0008).
-/// A Unit that merely answered a blow did not attack. The Slots left behind stay
-/// empty until the next Beat 0 (ADR 0009).
-fn apply_deaths(board: &mut Board, attacked: &[(Side, usize)], log: &mut Vec<Event>) {
-    let mut bystander_deaths = Vec::new();
-    let mut attacker_deaths = Vec::new();
-
-    for side in [Side::Player, Side::Opposing] {
-        for index in 0..SLOTS {
-            if !board.side(side).get(index).is_some_and(Unit::is_dead) {
-                continue;
-            }
-            if attacked.contains(&(side, index)) {
-                attacker_deaths.push((side, index));
-            } else {
-                bystander_deaths.push((side, index));
-            }
-        }
-    }
-
-    for (side, index) in bystander_deaths.into_iter().chain(attacker_deaths) {
-        remove_and_log(board, side, index, log);
-    }
-}
-
-/// Remove one dead Unit and log it, reviving it in place if it has Reborn to spend.
-fn remove_and_log(board: &mut Board, side: Side, index: usize, log: &mut Vec<Event>) {
-    let unit = board
-        .side_mut(side)
-        .take(index)
-        .expect("just observed as occupied");
-    log.push(Event::Died {
-        side,
-        slot: slot_no(index),
-        def: unit.def.clone(),
-        name: unit.name.clone(),
-        poisoned: unit.doomed,
-    });
-
-    if unit.has(Keyword::Reborn) && !unit.reborn_spent {
-        let mut returned = unit;
-        returned.reborn_spent = true;
-        returned.keywords.remove(&Keyword::Reborn);
-        returned.health = 1;
-        returned.doomed = false;
-        let name = returned.name.clone();
-        board.side_mut(side).put(index, returned);
-        log.push(Event::Reborn {
-            side,
-            slot: slot_no(index),
-            name,
-        });
+        unit.poisoned = true;
     }
 }
 
 /// Build a Board from two lists of Units. Convenience for tests and setup.
-pub fn board_of(player: Vec<crate::party::Unit>, opposing: Vec<crate::party::Unit>) -> Board {
+pub fn board_of(player: Vec<Unit>, opposing: Vec<Unit>) -> Board {
     Board::new(
         Party::from_units(player).expect("player Party fits"),
         Party::from_units(opposing).expect("opposing Party fits"),

@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// An independent axis of randomness. Draws in one domain never disturb another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Domain {
-    /// Building the shared minion pool.
+    /// Building the shared Unit pool.
     Pool,
     /// Shop offers and rerolls.
     Shop,
@@ -25,7 +25,7 @@ pub enum Domain {
     Matchmaking,
     /// Coin flips and target selection inside a combat.
     Combat,
-    /// Random targeting inside card effects.
+    /// Random targeting inside Unit abilities.
     Effect,
     /// Hero and starting-state selection.
     Setup,

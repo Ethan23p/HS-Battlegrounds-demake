@@ -103,6 +103,46 @@ nothing to double-count. **`0001` and `0002` predate this fix too**, and their r
 logs are in other containers — if a quote from either fails to verify, this is the
 first thing to suspect.
 
+## Splitting one session into two exports
+
+A session can contain more than one era — `/clear` ends one line of work and starts
+another inside the same session id. `0004` and `0005` are one such session, split at the
+`/clear` that opened the fresh start, so that the discarded iteration and the work that
+replaced it are separate documents.
+
+`--from-line` and `--to-line` restrict an export to a range of raw JSONL lines. Find the
+boundary by reading the log — the script has no notion of what a boundary is, and
+shouldn't — then name it:
+
+```bash
+# the line numbers are raw JSONL lines, 1-based and inclusive
+grep -n 'command-name>/clear' ~/.claude/projects/<mangled-cwd>/<session>.jsonl
+
+python3 scripts/export_transcript.py --session <session> --to-line 986 \
+    --out docs/transcripts/0004-....md
+python3 scripts/export_transcript.py --session <session> --from-line 987 \
+    --out docs/transcripts/0005-....md
+```
+
+Raw line numbers are the unit because they are the only numbering that doesn't move: the
+log is append-only, so a line keeps its number for the life of the session however the
+renderer's filtering changes. Each export records its range as `source_span`, and
+`session_id` is deliberately the same in both — it is one session.
+
+Verify a split you intend to keep. Ranges that are contiguous and non-overlapping should
+contain between them exactly what one unranged export contains:
+
+```bash
+# copy the log first — a live session appends while you work, and an
+# export taken a minute later will legitimately have more in it
+cp ~/.claude/projects/<mangled-cwd>/<session>.jsonl frozen.jsonl
+python3 scripts/export_transcript.py --session frozen.jsonl --to-line 986 --out a.md
+python3 scripts/export_transcript.py --session frozen.jsonl --from-line 987 --out b.md
+python3 scripts/export_transcript.py --session frozen.jsonl --out full.md
+# strip front matter from each, then: body(a) + body(b) == body(full)
+# and lines_total from a and b should sum to lines_total from full
+```
+
 ## Caveat: these are point-in-time snapshots
 
 An export captures a session exactly as it stood when the script ran. If the session was
