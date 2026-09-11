@@ -84,3 +84,10 @@ Repeat.
 
 > Same as Battlegrounds — Taunt, Divine Shield, Poisonous, Windfury, Reborn, and Rally
 > (Rally is from the latest season, it's basically 'on attack') all unchanged
+
+### Feature 4 — abilities-as-data
+
+**Q: How should a card's abilities be represented — what does defining a new one look like?**
+
+> not cards but units - keep it simple, data-driven; more complex than that will have to
+> be a dedicated discussion
