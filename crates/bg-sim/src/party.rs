@@ -73,6 +73,14 @@ pub struct Unit {
     /// Marked when a Poisonous blow has landed, which is lethal independently of
     /// health. Cleared only by the Unit leaving play.
     pub poisoned: bool,
+    /// Set once this Unit's Divine Shield has absorbed something.
+    ///
+    /// The shield goes on absorbing for the rest of the Beat and breaks at the
+    /// top of the next -- the same shape as a Unit that runs out in one Beat and
+    /// dies at the top of the next. A Beat is one slice of time, so two blows
+    /// arriving in it arrive together; which one the engine reaches first is an
+    /// artefact of walking the Board, and nothing may turn on it.
+    pub shield_spent: bool,
     /// Intents this Unit still holds: how many more times it means to act before
     /// the Board renews them.
     ///
@@ -96,6 +104,7 @@ impl Unit {
             all_tribes: def.all_tribes,
             reborn_spent: false,
             poisoned: false,
+            shield_spent: false,
             intents: 0,
         }
     }

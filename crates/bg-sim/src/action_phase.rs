@@ -8,9 +8,10 @@
 //! things, each of them a question asked of the Board rather than a step in a
 //! schedule:
 //!
-//! 1. **Bury the dead.** A Unit that reached 0 health does not die in the Beat
-//!    that took it there; it dies at the top of the next one. So a fatally
-//!    wounded Unit still acts for the rest of the Beat it ran out in.
+//! 1. **Settle what the last Beat did.** A Unit that reached 0 health does not
+//!    die in the Beat that took it there; it dies at the top of the next one. So
+//!    a fatally wounded Unit still acts for the rest of the Beat it ran out in.
+//!    A Divine Shield that absorbed something breaks here for the same reason.
 //! 2. **Close ranks.** Each Party re-anchors on its left-most Unit, closing the
 //!    hole the burial left.
 //! 3. **Renew Intents, if nobody holds one.** An Intent is a Unit's claim on a
@@ -229,6 +230,7 @@ pub fn resolve(mut board: Board, rng: &mut Rng) -> Resolution {
         log.push(Event::BeatBegan { beat: beats });
 
         bury_the_dead(&mut board, &mut log);
+        break_spent_shields(&mut board);
         close_ranks(&mut board, &mut log);
         if no_intents_left(&board) {
             renew_intents(&mut board);
@@ -302,6 +304,23 @@ fn bury(board: &mut Board, side: Side, index: usize, log: &mut Vec<Event>) {
             slot: slot_no(index),
             name,
         });
+    }
+}
+
+/// Break every Divine Shield that absorbed something in the previous Beat.
+///
+/// Runs after the burial so a Unit brought back by Reborn does not carry a
+/// already-spent shield into this Beat.
+fn break_spent_shields(board: &mut Board) {
+    for side in [Side::Player, Side::Opposing] {
+        for index in 0..SLOTS {
+            if let Some(unit) = board.side_mut(side).get_mut(index)
+                && unit.shield_spent
+            {
+                unit.keywords.remove(&Keyword::DivineShield);
+                unit.shield_spent = false;
+            }
+        }
     }
 }
 
@@ -463,8 +482,10 @@ fn resolve_transaction(board: &mut Board, transaction: &Transaction, log: &mut V
 /// Land one blow on one Unit.
 ///
 /// A Divine Shield absorbs it whole -- including its Poisonous, which needs damage
-/// to actually land. One blow, one shield: a Unit struck twice in the same Beat
-/// spends its shield on the first and takes the second.
+/// to actually land. The shield does not break here: it absorbs everything this
+/// Beat brings and breaks at the top of the next. Otherwise a Unit struck twice in
+/// one Beat would spend its shield on whichever blow the engine reached first,
+/// which would make the walk order of the Board worth something.
 fn hit(
     board: &mut Board,
     side: Side,
@@ -476,7 +497,8 @@ fn hit(
     let Some(unit) = board.side_mut(side).get_mut(index) else {
         return;
     };
-    if unit.keywords.remove(&Keyword::DivineShield) {
+    if unit.has(Keyword::DivineShield) {
+        unit.shield_spent = true;
         log.push(Event::ShieldAbsorbed {
             side,
             slot: slot_no(index),

@@ -557,12 +557,15 @@ fn poisonous_kills_the_unit_that_attacked_into_it() {
 }
 
 #[test]
-fn a_shield_spends_itself_on_the_first_blow_and_the_second_lands() {
+fn a_shield_absorbs_everything_its_beat_brings() {
     // The paladin is struck twice in one Beat: once by the Slot-1 attacker, once
-    // as the answer from the Taunt holder it chose. One blow, one shield --
-    // Battlegrounds' own rule, needing no help from ours. Pooling the Beat's damage
-    // and absorbing all of it would be an invention, and one only a pooled
-    // implementation would ever need.
+    // as the answer from the Taunt holder it chose. Both are absorbed, and the
+    // shield breaks at the top of the next Beat.
+    //
+    // Battlegrounds spends a shield on one blow, but Battlegrounds cannot deliver
+    // two at once. Here they arrive in the same slice of time, and picking one of
+    // them to absorb would mean picking by the order the engine walks the Board --
+    // which would make a Unit's side worth something.
     let r = resolve(
         board_of(
             vec![u("paladin", 9, 1, &[Keyword::DivineShield])],
@@ -578,10 +581,14 @@ fn a_shield_spends_itself_on_the_first_blow_and_the_second_lands() {
                 ..
             }
         )),
-        1,
-        "one shield, spent once"
+        2,
+        "both blows of the Beat met the same shield"
     );
-    assert_eq!(r.outcome, Outcome::OpposingWins, "the second blow landed");
+    assert_eq!(
+        r.outcome,
+        Outcome::OpposingWins,
+        "the shield broke at the top of the next Beat, and the next blow landed"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -705,9 +712,10 @@ fn a_divine_shield_absorbs_one_blow_entirely() {
 
 #[test]
 fn windfury_breaks_a_divine_shield_and_then_connects() {
-    // The two attacks are separate Beats, so the shield eats the first and the
-    // second lands. This is why Windfury is modelled as two attacks rather than
-    // one doubled attack.
+    // The two attacks are separate Beats, so the first Beat's blows are absorbed,
+    // the shield breaks at the top of the second, and the second attack lands.
+    // This is why Windfury is modelled as two attacks rather than one doubled
+    // attack.
     let r = resolve(
         board_of(
             vec![u("gusty", 3, 9, &[Keyword::Windfury])],
@@ -717,12 +725,13 @@ fn windfury_breaks_a_divine_shield_and_then_connects() {
     );
     assert_eq!(r.outcome, Outcome::PlayerWins);
     assert_eq!(
-        r.beats, 2,
-        "shield broken and the Unit killed before Intents renewed"
+        r.beats, 3,
+        "one Beat absorbed, one to land the second attack, one to bury"
     );
     assert_eq!(
         count_events(&r.log, |e| matches!(e, Event::ShieldAbsorbed { .. })),
-        1
+        2,
+        "the first Beat's attack and the answer to it both met the shield"
     );
 }
 
@@ -871,7 +880,7 @@ fn the_log_narrates_as_readable_lines() {
     let text = r.narrate();
     assert!(text.contains("beat 1"), "{text}");
     assert!(text.contains("shield"), "{text}");
-    assert!(text.contains("PlayerWins"), "{text}");
+    assert!(text.contains(&format!("{:?}", r.outcome)), "{text}");
     assert_eq!(
         text.lines().count(),
         r.log.len(),
@@ -899,4 +908,26 @@ fn a_struck_event_names_who_struck_whom() {
             damage: 2,
         }
     ));
+}
+
+// A Beat is one slice of time, so nothing inside it may depend on the order the
+// engine happens to walk the two Parties.
+#[test]
+fn a_board_and_its_mirror_resolve_the_same_way() {
+    let shielded = u("shielded", 9, 200, &[Keyword::DivineShield]);
+    let heavy = plain("heavy", 9, 20);
+    // Taunt pins targeting, so the only variable left is walk order.
+    let taunter = u("taunter", 2, 20, &[Keyword::Taunt]);
+
+    let one = resolve(
+        board_of(vec![shielded.clone()], vec![heavy.clone(), taunter.clone()]),
+        &mut rng(),
+    );
+    let other = resolve(board_of(vec![heavy, taunter], vec![shielded]), &mut rng());
+
+    assert_eq!(
+        one.final_board.player.get(0).map(|unit| unit.health),
+        other.final_board.opposing.get(0).map(|unit| unit.health),
+        "the shielded Unit fared differently depending on which side it stood on"
+    );
 }
