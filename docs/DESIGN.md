@@ -140,3 +140,48 @@ call the field `actions` or `intent`.*
 
 > nice, all of that sounds more clean. Actions was the previous model - but, indeed,
 > instead of actions I prefer intent
+
+#### Beats slice time; interactions are concurrent within them
+
+*The engine had both sides acting in the same beat, which nothing on record established
+— Battlegrounds alternates, and gives one side the first swing on a coin flip. Claude
+asked whether a beat belongs to one side or to both.*
+([0006](transcripts/0006-the-concurrent-beat.md))
+
+> Regarding beats - the missing piece is that I don't want there to be an ordering
+> advantage (in Battlegrounds, it's a coin flip); another way of saying this is I want
+> opposing side's actions to resolve on a regular basis, within the same beat when valid.
+>
+> Your instinct will be to complicate this, but I have the solution for you: Battlegrounds
+> uses a non-concurrent transaction model (all steps **and** interactions have an origin
+> and a target) but this app should use a concurrent transaction model (interactions have
+> an origin and a target, beats are just how time is sliced).
+>
+> Another way to say it: in Battlegrounds, steps/interactions resolve rapidly and
+> logically (the next troop doesn't attack until the steps caused by the previous troop
+> are resolved); this app is **identical** but instead of steps/interactions this app has
+> beats and interactions, distinct.
+
+*Restated as an execution model:*
+
+> Battleground's model is like a single threaded simulation which could theoretically get
+> blocked by a single tick which is growing infinitely, this model is like a proper
+> multi-threaded simulation. Does that make sense? Interactions/steps in Battlegrounds are
+> strictly stacked.
+
+*On why beats exist at all, rather than letting everything act at once:*
+
+> Aside from the logic, the reason I declare beats is that I still think it's valuable for
+> there to be a cohesive narrative which is progressing along, relatively singularly. else
+> the default would seem to be each unit attacking at the same time, which is not desired.
+
+#### A Divine Shield absorbs its beat
+
+*The first consequence of the above. A shield was being spent on whichever blow the engine
+reached first, and the engine always walked the player side first, so a shielded unit
+fared differently depending on which side of the board it stood on — a mirrored board
+resolved 160 against 167. Claude proposed that a shield instead absorb everything its beat
+brings and break at the top of the next, the same shape as death-resolution timing.*
+([0006](transcripts/0006-the-concurrent-beat.md))
+
+> yes, that sounds very valid; approved on 1 & 2.

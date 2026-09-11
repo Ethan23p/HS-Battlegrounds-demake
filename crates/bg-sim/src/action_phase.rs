@@ -21,6 +21,14 @@
 //!    on both sides in this one Beat. There is no first swing to have, so a
 //!    mirror is a mutual kill.
 //!
+//! Both halves of that are design, not convenience. Both sides act in the same
+//! Beat because neither is owed an ordering advantage -- Battlegrounds settles
+//! that with a coin flip, and this does not. But only one Unit per side acts,
+//! rather than the whole Party at once, because a fight is meant to read as a
+//! narrative proceeding singularly. A Beat is how time is sliced; what shares one
+//! is concurrent, and nothing in a Beat may depend on the order the engine walks
+//! the Board.
+//!
 //! Whose Beat it is therefore lives on the Unit, as [`Unit::intents`], and not in
 //! a cursor walking the Slots. That is what lets a Party close ranks the instant a
 //! hole opens: a Unit carries its Intents with it when it slides, so sliding can
