@@ -39,6 +39,8 @@ Repeat.
 
 ## Features
 
+**Order:** beats (done) → targeting → death-resolution timing → keywords → abilities-as-data.
+
 ### Feature 1
 
 **Q: What's the first departure from Battlegrounds you want to talk about — what is it, and how does it work?**
