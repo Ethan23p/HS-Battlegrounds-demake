@@ -51,7 +51,7 @@ Repeat.
 >
 > This isn't a feature/departure, just makes it in for clarification.
 
-### Feature 1
+### Feature 1 — beats
 
 **Q: What's the first departure from Battlegrounds you want to talk about — what is it, and how does it work?**
 
@@ -66,3 +66,14 @@ Repeat.
 > interaction has to resolve before the next can begin, but this app's beats contain any
 > arbitrary number of interactions we choose; nonetheless, most beats involve one
 > interaction.
+
+### Feature 2 — death-resolution timing
+
+**Q: When a unit dies mid-beat, when does its death actually take effect?**
+
+> a unit doesn't die within a beat - death is triggered during the nextmost beat after a
+> unit reaches 0 health. For example:
+> Beat A
+> unit Charlie receives 2 damage (goes from 2 to 0 health)
+> Beat B
+> unit Charlie dies, triggering their 'on death'
