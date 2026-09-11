@@ -29,7 +29,11 @@ Repeat.
 
 ## Vision
 
-_(pending)_
+**Q: What are you making, and why that?**
+
+> I'd like to make a minimal demake of Hearthstone: Battlegrounds - just a gameplay
+> vertical slice - with a handful of departures which should end up feeling like a
+> fairly distinct autobattler game.
 
 ---
 
