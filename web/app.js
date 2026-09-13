@@ -185,15 +185,26 @@ function narrate(step) {
 const rowEl = { Player: document.getElementById("player-row"), Opposing: document.getElementById("opposing-row") };
 const logEl = document.getElementById("log");
 const outcomeEl = document.getElementById("outcome");
+const beatValueEl = document.getElementById("beat-value");
+const resultValueEl = document.getElementById("result-value");
 const playBtn = document.getElementById("play");
 const skipBtn = document.getElementById("skip");
 const speedSelect = document.getElementById("speed");
 
+// Each slot keeps a permanent slot-number label (real engine vocabulary --
+// the log itself says "slot 3" -- so a viewer's cell should say so too) plus
+// a content wrapper that renderUnit replaces freely.
 for (const side of SIDES) {
   for (let i = 0; i < SLOTS; i++) {
     const el = document.createElement("div");
     el.className = "unit empty";
     el.dataset.slot = String(i);
+    const label = document.createElement("span");
+    label.className = "slot-no";
+    label.textContent = String(i + 1);
+    const content = document.createElement("div");
+    content.className = "content";
+    el.append(content, label);
     rowEl[side].appendChild(el);
   }
 }
@@ -204,15 +215,16 @@ function slotEl(side, slot) {
 
 function renderUnit(side, slot, unit) {
   const el = slotEl(side, slot);
+  const content = el.querySelector(".content");
   el.className = "unit" + (unit ? "" : " empty");
   if (!unit) {
-    el.innerHTML = "";
+    content.innerHTML = "";
     return;
   }
   const badges = unit.keywords
     .map((k) => `<span class="badge ${k}" title="${k}">${KEYWORD_BADGE[k] ?? "?"}</span>`)
     .join("");
-  el.innerHTML = `
+  content.innerHTML = `
     <div class="badges">${badges}</div>
     <div class="name">${unit.name}</div>
     <div class="stats"><span class="atk">${unit.attack}</span><span class="sep">/</span><span class="hp">${Math.max(unit.health, 0)}</span></div>
@@ -321,8 +333,10 @@ class Player {
     } else if (step.kind === "beat") {
       this.apply(step);
       renderAll(this.board);
+      beatValueEl.textContent = String(step.beat);
     } else if (step.kind === "ended") {
       outcomeEl.textContent = `${step.outcome} — ${step.beats} beats`;
+      resultValueEl.textContent = step.outcome;
     }
   }
 
@@ -348,8 +362,10 @@ class Player {
       const step = this.steps[this.index++];
       this.logLine(step, false);
       this.apply(step);
+      if (step.kind === "beat") beatValueEl.textContent = String(step.beat);
       if (step.kind === "ended") {
         outcomeEl.textContent = `${step.outcome} — ${step.beats} beats`;
+        resultValueEl.textContent = step.outcome;
       }
     }
     renderAll(this.board);
