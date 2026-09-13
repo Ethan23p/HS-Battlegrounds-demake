@@ -185,3 +185,12 @@ brings and break at the top of the next, the same shape as death-resolution timi
 ([0006](transcripts/0006-the-concurrent-beat.md))
 
 > yes, that sounds very valid; approved on 1 & 2.
+
+#### The opponent pool is procedural, kept light
+
+*Initial recorded that a random-draw-from-a-pool opponent was mentioned but never
+confirmed, and the 0.3 roadmap entry named it a blocker: a pool of what — pre-built
+parties, other runs, something generated? Asked directly once 0.1 shipped.*
+([0007](transcripts/0007-the-front-end-and-the-scratchpad.md))
+
+> Procedurally generated, not overly involved at this stage
