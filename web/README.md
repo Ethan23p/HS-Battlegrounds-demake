@@ -43,9 +43,11 @@ the command line, for a look with no browser involved.
 
 `app.js` calls `bg-wasm`'s `resolve` directly — the real `bg-sim::action_phase::resolve`,
 compiled to `wasm32` and run in the browser — so the fight it plays back is not a second
-implementation of the rules. It still reconstructs *board state per animation step* by
-replaying the returned event log against a client-side copy of the resulting
-`initial_board`: the reconstruction rules for that (when a shield breaks, what Reborn
-revives with, how compaction packs) are read directly off `bg-sim`'s source and kept in
-sync with it by hand, since the log states changes, not states. See the comment at the
-top of `app.js`.
+implementation of the rules. It also no longer reconstructs board state itself: the
+`Resolution` carries `boards`, a Board snapshot already fully resolved for every Beat, so
+the viewer reads the resulting state directly instead of deriving it from the log. `log`
+is read here only for narration and animation timing — which slot to flash, what number
+to pop — never for what a Unit's resulting stats or keywords are. One step of playback is
+one Beat: its cues (strikes, shields, deaths, revivals) animate together, since a Beat's
+interactions are concurrent, and the numbers on screen only change once, when that Beat's
+board is revealed. See the comment at the top of `app.js`.

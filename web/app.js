@@ -1,13 +1,16 @@
-// Plays back a bg-sim `Resolution` (the global FIGHT, loaded from fight.js).
+// Plays back a bg-sim `Resolution` (produced live by bg-wasm; see boot()
+// below).
 //
-// A Resolution is a replay: `initial_board` plus `log` (see
-// crates/bg-sim/src/action_phase.rs). Every Event states a change, not a
-// state, so this file reconstructs board state by replaying the log against
-// a client-side Board -- and the rules it uses to do that (when a shield
-// breaks, what Reborn revives with, how compaction packs) are read directly
-// off bg-sim's source, not invented. If bg-sim's rules change, this drifts;
-// there is no way around that for a log-based replay short of shipping the
-// engine itself (see 0.4 in docs/scratchpad/roadmap.md).
+// bg-sim's `boards` field is the fix for a debt this file used to carry: it
+// used to reconstruct board state itself, replaying `log` against a
+// hand-written copy of bg-sim's own rules (when a shield breaks, what Reborn
+// revives with, how compaction packs). That required a producer (bg-sim) and
+// a consumer (this file) to agree on logic neither could check the other
+// against -- exactly the kind of coupling a fact log is supposed to avoid.
+// `boards[i]` now tells the resulting state directly: the Board exactly as it
+// stood once Beat `i + 1` finished, nothing inferred. `log` is read here only
+// for narration and animation timing -- which slot to flash, what number to
+// pop -- never for what a Unit's resulting stats or keywords are.
 
 const KEYWORD_BADGE = {
   Taunt: "T",
@@ -21,161 +24,76 @@ const KEYWORD_BADGE = {
 const SLOTS = 8;
 const SIDES = ["Player", "Opposing"];
 
-function cloneUnit(u) {
-  return u ? { ...u, keywords: [...u.keywords] } : null;
-}
-
-// Mirrors bg-sim's Board/Party: two eight-slot arrays, left-packed, indexed
-// from 0 -- the log's slot numbers count from 1, so callers subtract 1.
-class ClientBoard {
-  constructor(initialBoard) {
-    this.player = initialBoard.player.slots.map(cloneUnit);
-    this.opposing = initialBoard.opposing.slots.map(cloneUnit);
-    // Corpses kept only long enough for a possible Reborn to consume them.
-    this._corpses = new Map();
-    // Slots whose shield absorbed something this Beat. Broken at the top of
-    // the next -- see bg-sim's `break_spent_shields`.
-    this._shieldsToBreak = new Set();
-  }
-
-  side(name) {
-    return name === "Player" ? this.player : this.opposing;
-  }
-
-  startBeat() {
-    for (const key of this._shieldsToBreak) {
-      const [side, slot] = key.split(":");
-      const unit = this.side(side)[Number(slot)];
-      if (unit) unit.keywords = unit.keywords.filter((k) => k !== "DivineShield");
-    }
-    this._shieldsToBreak.clear();
-  }
-
-  hit(side, slot, damage) {
-    const unit = this.side(side)[slot];
-    if (unit) unit.health -= damage;
-  }
-
-  absorb(side, slot) {
-    this._shieldsToBreak.add(`${side}:${slot}`);
-  }
-
-  die(side, slot) {
-    const arr = this.side(side);
-    this._corpses.set(`${side}:${slot}`, arr[slot]);
-    arr[slot] = null;
-  }
-
-  revive(side, slot, name) {
-    const key = `${side}:${slot}`;
-    const corpse = this._corpses.get(key);
-    this._corpses.delete(key);
-    this.side(side)[slot] = {
-      ...corpse,
-      name,
-      health: 1,
-      poisoned: false,
-      reborn_spent: true,
-      keywords: corpse.keywords.filter((k) => k !== "Reborn"),
-    };
-  }
-
-  compact(side) {
-    const arr = this.side(side);
-    const packed = arr.filter((u) => u !== null);
-    while (packed.length < SLOTS) packed.push(null);
-    arr.splice(0, SLOTS, ...packed);
-  }
-}
-
-// Turn the flat Event log into animation steps. A Struck/StruckBack is
-// immediately followed by its ShieldAbsorbed when one happens -- bg-sim's
-// `hit()` pushes them as one atomic pair and nothing else can land between
-// them -- so this is the one place the log is read with a lookahead of one.
-function buildSteps(log) {
-  const steps = [];
-  for (let i = 0; i < log.length; i++) {
-    const [type, data] = Object.entries(log[i])[0];
-    if (type === "Struck" || type === "StruckBack") {
-      const attackerSide = data.by;
-      const targetSide = otherSide(data.by);
-      const attackerSlot =
-        type === "Struck" ? data.attacker_slot - 1 : data.slot - 1;
-      const targetSlot = data.target_slot - 1;
-      const next = log[i + 1] && Object.entries(log[i + 1])[0];
-      if (
-        next &&
-        next[0] === "ShieldAbsorbed" &&
-        next[1].side === targetSide &&
-        next[1].slot - 1 === targetSlot
-      ) {
-        steps.push({
-          kind: "absorb",
-          attackerSide,
-          attackerSlot,
-          targetSide,
-          targetSlot,
-        });
-        i++; // consume the paired ShieldAbsorbed
-      } else {
-        steps.push({
-          kind: "hit",
-          attackerSide,
-          attackerSlot,
-          targetSide,
-          targetSlot,
-          damage: data.damage,
-        });
-      }
-      continue;
-    }
-    if (type === "BeatBegan") steps.push({ kind: "beat", beat: data.beat });
-    else if (type === "Compacted") steps.push({ kind: "compact", side: data.side });
-    else if (type === "Died")
-      steps.push({ kind: "died", side: data.side, slot: data.slot - 1, name: data.name });
-    else if (type === "Reborn")
-      steps.push({ kind: "reborn", side: data.side, slot: data.slot - 1, name: data.name });
-    else if (type === "Ended")
-      steps.push({ kind: "ended", outcome: data.outcome, beats: data.beats });
-    else if (type === "ShieldAbsorbed") {
-      // Only reachable if a ShieldAbsorbed appears without a preceding
-      // Struck/StruckBack, which bg-sim never emits. Kept as a visible
-      // failure rather than a silently dropped event.
-      throw new Error("unpaired ShieldAbsorbed in log");
-    }
-  }
-  return steps;
-}
-
 function otherSide(side) {
   return side === "Player" ? "Opposing" : "Player";
 }
 
-function narrate(step) {
-  switch (step.kind) {
-    case "beat":
-      return { text: `-- beat ${step.beat} --`, cls: "beat" };
+// One entry per Struck/Died/etc. in a Beat, carrying only what a cue needs to
+// animate -- never enough to derive a rule from.
+function narrate(cue) {
+  switch (cue.kind) {
     case "hit":
-      return {
-        text: `  ${step.attackerSide.toLowerCase()} slot ${step.attackerSlot + 1} strikes ${step.targetSide.toLowerCase()} slot ${step.targetSlot + 1} for ${step.damage}`,
-      };
+      return `  ${cue.attackerSide.toLowerCase()} slot ${cue.attackerSlot + 1} strikes ${cue.targetSide.toLowerCase()} slot ${cue.targetSlot + 1} for ${cue.damage}`;
     case "absorb":
-      return {
-        text: `  ${step.targetSide.toLowerCase()} slot ${step.targetSlot + 1} absorbs it on its shield`,
-      };
+      return `  ${cue.targetSide.toLowerCase()} slot ${cue.targetSlot + 1} absorbs it on its shield`;
     case "died":
-      return { text: `  ${step.side.toLowerCase()} slot ${step.slot + 1} (${step.name}) dies` };
+      return `  ${cue.side.toLowerCase()} slot ${cue.slot + 1} (${cue.name}) dies`;
     case "reborn":
-      return {
-        text: `  ${step.side.toLowerCase()} slot ${step.slot + 1} returns as ${step.name} with 1 health`,
-      };
+      return `  ${cue.side.toLowerCase()} slot ${cue.slot + 1} returns as ${cue.name} with 1 health`;
     case "compact":
-      return { text: `  the ${step.side.toLowerCase()} party closes ranks` };
-    case "ended":
-      return { text: `== ${step.outcome} after ${step.beats} beats ==`, cls: "beat" };
+      return `  the ${cue.side.toLowerCase()} party closes ranks`;
     default:
-      return { text: "" };
+      return "";
   }
+}
+
+// Turn the flat Event log into one step per Beat (a list of narration cues,
+// plus that Beat's already-resolved Board) and a final "ended" step. A
+// Struck/StruckBack is immediately followed by its ShieldAbsorbed when one
+// happens -- bg-sim's `hit()` pushes them as one atomic pair and nothing else
+// can land between them -- so this is the one place the log is read with a
+// lookahead of one.
+function buildBeatSteps(log, boards) {
+  const steps = [];
+  let current = null;
+
+  for (let i = 0; i < log.length; i++) {
+    const [type, data] = Object.entries(log[i])[0];
+
+    if (type === "BeatBegan") {
+      current = { kind: "beat", beat: data.beat, cues: [], board: boards[data.beat - 1] };
+      steps.push(current);
+      continue;
+    }
+    if (type === "Ended") {
+      steps.push({ kind: "ended", outcome: data.outcome, beats: data.beats });
+      continue;
+    }
+    if (type === "Struck" || type === "StruckBack") {
+      const attackerSide = data.by;
+      const targetSide = otherSide(data.by);
+      const attackerSlot = type === "Struck" ? data.attacker_slot - 1 : data.slot - 1;
+      const targetSlot = data.target_slot - 1;
+      const next = log[i + 1] && Object.entries(log[i + 1])[0];
+      if (next && next[0] === "ShieldAbsorbed" && next[1].side === targetSide && next[1].slot - 1 === targetSlot) {
+        current.cues.push({ kind: "absorb", attackerSide, attackerSlot, targetSide, targetSlot });
+        i++; // consume the paired ShieldAbsorbed
+      } else {
+        current.cues.push({ kind: "hit", attackerSide, attackerSlot, targetSide, targetSlot, damage: data.damage });
+      }
+      continue;
+    }
+    if (type === "Died") current.cues.push({ kind: "died", side: data.side, slot: data.slot - 1, name: data.name });
+    else if (type === "Reborn") current.cues.push({ kind: "reborn", side: data.side, slot: data.slot - 1, name: data.name });
+    else if (type === "Compacted") current.cues.push({ kind: "compact", side: data.side });
+    else if (type === "ShieldAbsorbed") {
+      // Only reachable if one appears without a preceding Struck/StruckBack,
+      // which bg-sim never emits. A visible failure beats a silently dropped
+      // event.
+      throw new Error("unpaired ShieldAbsorbed in log");
+    }
+  }
+  return steps;
 }
 
 // ---------------------------------------------------------------------------
@@ -231,9 +149,12 @@ function renderUnit(side, slot, unit) {
   `;
 }
 
-function renderAll(board) {
+// `board` is a plain bg-sim Board (`{player: {slots}, opposing: {slots}}`) --
+// told directly from `initial_board` or a `boards[i]` entry, never mutated.
+function renderBoard(board) {
   for (const side of SIDES) {
-    for (let i = 0; i < SLOTS; i++) renderUnit(side, i, board.side(side)[i]);
+    const slots = side === "Player" ? board.player.slots : board.opposing.slots;
+    for (let i = 0; i < SLOTS; i++) renderUnit(side, i, slots[i]);
   }
 }
 
@@ -252,91 +173,68 @@ function pulse(side, slot, cls, duration) {
   setTimeout(() => el.classList.remove(cls), duration);
 }
 
+function logLine(text, cls, current) {
+  const div = document.createElement("div");
+  div.className = "line" + (cls ? ` ${cls}` : "") + (current ? " current" : "");
+  div.textContent = text;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// Fire every cue's flavor animation (pulse, damage pop, fade, flash) at once.
+// None of it mutates anything: the numbers on screen don't move until
+// `renderBoard` commits the Beat's already-resolved result at the end of the
+// step. A Beat is one slice of time -- its cues are concurrent, so nothing
+// here is staggered to imply an order between them.
+function animateCues(cues, speed) {
+  for (const cue of cues) {
+    if (cue.kind === "hit") {
+      pulse(cue.attackerSide, cue.attackerSlot, "attacking", speed);
+      popDamage(cue.targetSide, cue.targetSlot, cue.damage);
+    } else if (cue.kind === "absorb") {
+      pulse(cue.attackerSide, cue.attackerSlot, "attacking", speed);
+      pulse(cue.targetSide, cue.targetSlot, "shield-flash", speed);
+    } else if (cue.kind === "died") {
+      pulse(cue.side, cue.slot, "dying", speed);
+    } else if (cue.kind === "reborn") {
+      pulse(cue.side, cue.slot, "revive-flash", speed);
+    }
+  }
+}
+
 class Player {
-  constructor(board, steps) {
-    this.board = board;
+  constructor(initialBoard, steps) {
     this.steps = steps;
     this.index = 0;
     this.timer = null;
-    renderAll(board);
+    renderBoard(initialBoard);
   }
 
   get done() {
     return this.index >= this.steps.length;
   }
 
-  // Apply one step's board mutation, without animation. Used by both the
-  // animated path and "skip to end".
-  apply(step) {
-    switch (step.kind) {
-      case "beat":
-        this.board.startBeat();
-        break;
-      case "hit":
-        this.board.hit(step.targetSide, step.targetSlot, step.damage);
-        break;
-      case "absorb":
-        this.board.absorb(step.targetSide, step.targetSlot);
-        break;
-      case "died":
-        this.board.die(step.side, step.slot);
-        break;
-      case "reborn":
-        this.board.revive(step.side, step.slot, step.name);
-        break;
-      case "compact":
-        this.board.compact(step.side);
-        break;
-      case "ended":
-        break;
+  // Commit one Beat (or the closing summary): log its lines, animate its
+  // cues, and reveal its already-resolved board. No board mutation anywhere
+  // in here -- everything shown is told, not derived.
+  commit(step, { current }) {
+    if (step.kind === "beat") {
+      logLine(`-- beat ${step.beat} --`, "beat", current);
+      for (const cue of step.cues) logLine(narrate(cue), null, current);
+      beatValueEl.textContent = String(step.beat);
+    } else {
+      logLine(`== ${step.outcome} after ${step.beats} beats ==`, "beat", current);
+      outcomeEl.textContent = `${step.outcome} — ${step.beats} beats`;
+      resultValueEl.textContent = step.outcome;
     }
   }
 
-  logLine(step, current) {
-    const { text, cls } = narrate(step);
-    const div = document.createElement("div");
-    div.className = "line" + (cls ? ` ${cls}` : "") + (current ? " current" : "");
-    div.textContent = text;
-    logEl.appendChild(div);
-    logEl.scrollTop = logEl.scrollHeight;
-  }
-
-  // Advance one step with animation, returning the delay before the next.
   step(speed) {
     const step = this.steps[this.index++];
-    this.logLine(step, true);
-
-    if (step.kind === "hit") {
-      pulse(step.attackerSide, step.attackerSlot, "attacking", speed);
-      popDamage(step.targetSide, step.targetSlot, step.damage);
-      setTimeout(() => {
-        this.apply(step);
-        renderUnit(step.targetSide, step.targetSlot, this.board.side(step.targetSide)[step.targetSlot]);
-      }, speed / 2);
-    } else if (step.kind === "absorb") {
-      pulse(step.attackerSide, step.attackerSlot, "attacking", speed);
-      pulse(step.targetSide, step.targetSlot, "shield-flash", speed);
-      this.apply(step);
-    } else if (step.kind === "died") {
-      pulse(step.side, step.slot, "dying", speed);
-      setTimeout(() => {
-        this.apply(step);
-        renderUnit(step.side, step.slot, null);
-      }, speed);
-    } else if (step.kind === "reborn") {
-      this.apply(step);
-      renderUnit(step.side, step.slot, this.board.side(step.side)[step.slot]);
-      pulse(step.side, step.slot, "revive-flash", speed);
-    } else if (step.kind === "compact") {
-      this.apply(step);
-      renderAll(this.board);
-    } else if (step.kind === "beat") {
-      this.apply(step);
-      renderAll(this.board);
-      beatValueEl.textContent = String(step.beat);
-    } else if (step.kind === "ended") {
-      outcomeEl.textContent = `${step.outcome} — ${step.beats} beats`;
-      resultValueEl.textContent = step.outcome;
+    this.commit(step, { current: true });
+    if (step.kind === "beat") {
+      animateCues(step.cues, speed);
+      setTimeout(() => renderBoard(step.board), speed);
     }
   }
 
@@ -358,17 +256,13 @@ class Player {
 
   skipToEnd() {
     clearTimeout(this.timer);
+    let lastBoard = null;
     while (!this.done) {
       const step = this.steps[this.index++];
-      this.logLine(step, false);
-      this.apply(step);
-      if (step.kind === "beat") beatValueEl.textContent = String(step.beat);
-      if (step.kind === "ended") {
-        outcomeEl.textContent = `${step.outcome} — ${step.beats} beats`;
-        resultValueEl.textContent = step.outcome;
-      }
+      this.commit(step, { current: false });
+      if (step.kind === "beat") lastBoard = step.board;
     }
-    renderAll(this.board);
+    if (lastBoard) renderBoard(lastBoard);
     playBtn.disabled = true;
     skipBtn.disabled = true;
   }
@@ -385,9 +279,8 @@ async function boot() {
   // JS number can't hold the full range losslessly.
   const fight = JSON.parse(resolveWasm(showcase_board_json(), 1n));
 
-  const board = new ClientBoard(fight.initial_board);
-  const steps = buildSteps(fight.log);
-  const player = new Player(board, steps);
+  const steps = buildBeatSteps(fight.log, fight.boards);
+  const player = new Player(fight.initial_board, steps);
 
   playBtn.addEventListener("click", () => player.play());
   skipBtn.addEventListener("click", () => player.skipToEnd());

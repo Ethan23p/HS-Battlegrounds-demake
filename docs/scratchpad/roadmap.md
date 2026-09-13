@@ -22,6 +22,19 @@ Not canon — see `README.md`. Current as of 2026-09-13, from
   since 0.2 is the point where the page first needs to *ask* the engine something
   instead of replaying a canned log.
 
+## Principle: tell, don't ask, across the engine/front-end boundary
+
+Ethan's framing, from the `boards`-snapshot fix below. The engine is the source of
+truth for state and the event log; it computes both fully (this is instant — a
+synchronous WASM call, nothing to stream) and hands the complete, ordered, immutable
+result over as data. The front end never asks the engine "what happens next" and the
+engine never pushes on its own clock — pacing is entirely the front end's presentation
+choice, decoupled from how or when the engine produced the facts. Concretely: nothing
+downstream of `resolve()` should ever need to reimplement a bg-sim rule to interpret
+its output. If a future feature makes a consumer infer state from events again, that's
+the signal to add another told fact, not another inference. Worth holding to as 0.2's
+drag-to-reorder and later features get built.
+
 ## Why web, and why this order
 
 Claude can drive a browser (Playwright: click, drag, assert on the DOM, screenshot) but
@@ -46,15 +59,14 @@ Settled as engineering, no design input needed: pacing is a dropdown (slow/norma
 fast) rather than a fixed rate; units are colored cards with name/stats/keyword
 badges, no art yet — revisit only if the 0.5+ polish pass wants real sprites.
 
-**Debt, not a design question:** `app.js` reconstructs board state *per animation
-step* by replaying the log against rules read off `bg-sim`'s source (see the comment
-at the top of the file) — there's no shared code between the two for that part, so a
-change to `bg-sim`'s Action Phase can silently desync the viewer's frame-by-frame
-replay even after 0.2. WASM (below) removes the duplication in *deciding* the fight
-(the page calls the real `resolve`, not a reimplementation of it) but not in
-*animating* one step at a time from its log, which is a narrower and more durable
-problem: the log states changes, not states, so *something* has to know the rules to
-step through it visually. Only worth solving further if it actually bites.
+**Debt — resolved.** `Resolution` now carries `boards`, a Board snapshot already fully
+resolved for every Beat (bury, shield-break, compaction, every Struck/StruckBack/
+Reborn applied). `app.js` no longer reconstructs state from the log at all — narration
+events are read only for animation timing (which slot to flash, what number to pop),
+never for what a Unit's resulting stats or keywords are. This is the "tell, don't ask"
+fix Ethan named for it: bg-sim tells the resulting state directly instead of leaving
+every consumer to infer it by re-deriving the engine's own rules from a stream of
+deltas.
 
 ### 0.2 — Touch a unit, and the engine moves into the browser
 Two things land together, because the second is what the first actually needs.
