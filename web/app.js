@@ -374,9 +374,23 @@ class Player {
   }
 }
 
-const board = new ClientBoard(FIGHT.initial_board);
-const steps = buildSteps(FIGHT.log);
-const player = new Player(board, steps);
+// bg-wasm resolves the fight -- the same engine `bg-cli` calls, running in
+// the browser instead of shelled out to. `resolve` takes/returns the exact
+// JSON `bg-cli` would produce, so there is one wire format either way.
+import init, { showcase_board_json, resolve as resolveWasm } from "./pkg/bg_wasm.js";
 
-playBtn.addEventListener("click", () => player.play());
-skipBtn.addEventListener("click", () => player.skipToEnd());
+async function boot() {
+  await init();
+  // The seed is a Rust u64, which wasm-bindgen maps to a JS BigInt because a
+  // JS number can't hold the full range losslessly.
+  const fight = JSON.parse(resolveWasm(showcase_board_json(), 1n));
+
+  const board = new ClientBoard(fight.initial_board);
+  const steps = buildSteps(fight.log);
+  const player = new Player(board, steps);
+
+  playBtn.addEventListener("click", () => player.play());
+  skipBtn.addEventListener("click", () => player.skipToEnd());
+}
+
+boot();

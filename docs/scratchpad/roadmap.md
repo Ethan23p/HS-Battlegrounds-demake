@@ -46,30 +46,37 @@ Settled as engineering, no design input needed: pacing is a dropdown (slow/norma
 fast) rather than a fixed rate; units are colored cards with name/stats/keyword
 badges, no art yet — revisit only if the 0.5+ polish pass wants real sprites.
 
-**Debt, now being paid off in 0.2, not a design question:** `app.js` reconstructs
-board state by replaying the log against rules read off `bg-sim`'s source (see the
-comment at the top of the file) — there's no shared code between the two, so a
-change to `bg-sim`'s Action Phase can silently desync the viewer.
+**Debt, not a design question:** `app.js` reconstructs board state *per animation
+step* by replaying the log against rules read off `bg-sim`'s source (see the comment
+at the top of the file) — there's no shared code between the two for that part, so a
+change to `bg-sim`'s Action Phase can silently desync the viewer's frame-by-frame
+replay even after 0.2. WASM (below) removes the duplication in *deciding* the fight
+(the page calls the real `resolve`, not a reimplementation of it) but not in
+*animating* one step at a time from its log, which is a narrower and more durable
+problem: the log states changes, not states, so *something* has to know the rules to
+step through it visually. Only worth solving further if it actually bites.
 
 ### 0.2 — Touch a unit, and the engine moves into the browser
-Two things land together, because the second is what the first actually needs:
+Two things land together, because the second is what the first actually needs.
 
-- **`bg-sim` compiled to `wasm32`**, called directly from the page instead of
-  shelling out to `bg-cli`. Motivated by 0.2 specifically, not deferred from 0.4:
-  drag-to-reorder-then-refight needs the engine to answer a question the moment a
-  player drags a unit, and the alternative (reimplement `Party::compact` a second
-  time in JS, on top of what `app.js` already reimplements for replay) only makes
-  the drift risk above worse. One copy of the rules, no rebuild step between "drag"
-  and "fight."
-- **Drag-to-reorder a party before a fight**, via Pointer Events (mouse/touch/pen in
-  one path), snapping to the engine's own left-packing rather than a client-side
-  guess at it. Still one-shot: arrange, then fight, no persistent run yet.
+**`bg-sim` compiled to `wasm32` — done.** A thin `bg-wasm` crate (`showcase_board_json`,
+`resolve`) wraps the engine for `wasm-bindgen`; `app.js` now calls it directly instead
+of loading `bg-cli`'s generated output, verified to resolve the identical fixture fight
+(`PlayerWins`, 7 beats) as `bg-cli` itself. Motivated by 0.2 specifically, not deferred
+from 0.4: drag-to-reorder-then-refight needs the engine to answer a question the moment
+a player drags a unit, and reimplementing `Party::compact` a second time in JS on top of
+what `app.js` already reimplements for replay would only compound the drift risk. One
+copy of the rules now, no rebuild step between "drag" and "fight." `bg-cli` stays for a
+no-browser look at the same fixture. Mechanical notes for next time: `wasm-bindgen`'s
+CLI must match the crate version exactly (`cargo tree -p bg-wasm -i wasm-bindgen`,
+`cargo install wasm-bindgen-cli --version <that>`) and doesn't ship in the base
+toolchain; the seed argument is a JS `BigInt` (`1n`), not a `Number`, since it's a Rust
+`u64`; and `app.js` being a module now means `file://` no longer works at all for local
+testing — `python3 -m http.server` in `web/` (documented in `web/README.md`).
 
-**Mechanical, not risky:** a thin `bg-wasm` crate wrapping `resolve()` for
-`wasm-bindgen`; `bg-sim` already has zero I/O and full serde support, so it's a clean
-target. `wasm32-unknown-unknown` installs cleanly in this environment (confirmed
-2026-09-11); `wasm-bindgen`'s CLI does not ship in the base toolchain and needs
-installing when this is built.
+**Drag-to-reorder a party before a fight — not yet started.** Via Pointer Events
+(mouse/touch/pen in one path), snapping to the engine's own left-packing rather than a
+client-side guess at it. Still one-shot: arrange, then fight, no persistent run.
 
 ### 0.3 — A shop and a run
 Buy/sell/reroll, gold, multiple rounds. First version that's a game rather than a
