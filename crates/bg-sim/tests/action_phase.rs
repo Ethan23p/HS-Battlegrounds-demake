@@ -13,7 +13,7 @@
 //! handful seed the Rng explicitly to pin down the targeting mechanics themselves.
 
 use bg_sim::action_phase::{Event, MAX_BEATS, Outcome, Resolution, board_of, resolve};
-use bg_sim::party::{Side, Unit};
+use bg_sim::party::{Board, Side, Unit};
 use bg_sim::rng::{Domain, Rng, Seed};
 use bg_sim::units::{DefId, Keyword, UnitDef};
 
@@ -973,4 +973,39 @@ fn the_opening_board_replays_into_the_same_fight() {
     );
     let again = resolve(r.initial_board.clone(), &mut rng());
     assert_eq!(again, r, "same Board, same Rng state, same fight");
+}
+
+#[test]
+fn boards_are_told_one_per_beat_not_left_for_a_consumer_to_derive() {
+    // A shield holds through the Beat it absorbs in and only clears at the top
+    // of the next -- exactly the rule a consumer used to have to reimplement
+    // from the log alone. `boards` tells it directly instead.
+    let r = resolve(
+        board_of(
+            vec![plain("hammer", 9, 9)],
+            vec![u("shielded", 0, 1, &[Keyword::DivineShield])],
+        ),
+        &mut rng(),
+    );
+    assert_eq!(
+        r.boards.len(),
+        r.beats as usize,
+        "one snapshot per Beat run"
+    );
+
+    let shield_present = |board: &Board| -> bool {
+        board
+            .opposing
+            .get(0)
+            .is_some_and(|u| u.has(Keyword::DivineShield))
+    };
+    assert!(
+        shield_present(&r.boards[0]),
+        "the shield absorbed this Beat's blow and holds through it"
+    );
+    assert!(
+        !shield_present(&r.boards[1]),
+        "and is gone by the snapshot for the next Beat, with no Event to infer it from"
+    );
+    assert_eq!(&r.boards[r.boards.len() - 1], &r.final_board);
 }

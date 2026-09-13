@@ -211,9 +211,25 @@ pub struct Resolution {
     /// every Event states a change, not a state.
     pub initial_board: Board,
     pub log: Vec<Event>,
+    /// The Board exactly as it stood once each Beat finished -- `boards[i]` is
+    /// the state after Beat `i + 1`: bury, shield-break, compaction, and every
+    /// Struck/StruckBack/Reborn of that Beat already applied. One entry per Beat
+    /// run, so `boards.len() == beats as usize`.
+    ///
+    /// This is *told*, not left for a consumer to derive from `log`. `log`
+    /// still names the same Beat's events, but only for narration and animation
+    /// timing -- nothing about resulting state should ever be inferred from an
+    /// Event. Before this existed, `bg-cli`'s viewer had its own client-side
+    /// reimplementation of when a shield breaks, what Reborn revives with, and
+    /// how compaction packs, just to interpret the log; asking every consumer
+    /// to re-derive the engine's own rules is exactly the failure this field
+    /// removes.
+    pub boards: Vec<Board>,
     /// The Board as it stood when the Action Phase ended, left-anchored. The
     /// winner's survivors are what a damage-on-loss calculation will read, once
-    /// it exists.
+    /// it exists. Equal to `boards.last()`, or `initial_board` if no Beat ran --
+    /// kept as its own field because "the outcome's board" is worth a name of
+    /// its own, not an index into a list.
     pub final_board: Board,
 }
 
@@ -235,6 +251,7 @@ impl Resolution {
 pub fn resolve(mut board: Board, rng: &mut Rng) -> Resolution {
     let initial_board = board.clone();
     let mut log = Vec::new();
+    let mut boards = Vec::new();
     let mut beats = 0u32;
 
     let outcome = loop {
@@ -256,6 +273,7 @@ pub fn resolve(mut board: Board, rng: &mut Rng) -> Resolution {
         for transaction in declare(&mut board, rng) {
             resolve_transaction(&mut board, &transaction, &mut log);
         }
+        boards.push(board.clone());
     };
 
     log.push(Event::Ended { outcome, beats });
@@ -265,6 +283,7 @@ pub fn resolve(mut board: Board, rng: &mut Rng) -> Resolution {
         initial_board,
         log,
         final_board: board,
+        boards,
     }
 }
 
