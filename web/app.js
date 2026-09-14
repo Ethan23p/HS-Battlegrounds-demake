@@ -32,10 +32,18 @@ function otherSide(side) {
 // animate -- never enough to derive a rule from.
 function narrate(cue) {
   switch (cue.kind) {
-    case "hit":
-      return `  ${cue.attackerSide.toLowerCase()} slot ${cue.attackerSlot + 1} strikes ${cue.targetSide.toLowerCase()} slot ${cue.targetSlot + 1} for ${cue.damage}`;
-    case "absorb":
-      return `  ${cue.targetSide.toLowerCase()} slot ${cue.targetSlot + 1} absorbs it on its shield`;
+    case "hit": {
+      const verb = cue.answering ? "strikes back at" : "strikes";
+      return `  ${cue.attackerSide.toLowerCase()} slot ${cue.attackerSlot + 1} ${verb} ${cue.targetSide.toLowerCase()} slot ${cue.targetSlot + 1} for ${cue.damage}`;
+    }
+    case "absorb": {
+      // The absorb cue stands in for the hit line entirely -- bg-sim merges
+      // the blow and its absorption into one Event pair, so this is the only
+      // narration this blow gets. It needs the same who-did-what a hit line
+      // carries, or a reader can't tell what was absorbed.
+      const verb = cue.answering ? "strikes back at" : "strikes";
+      return `  ${cue.attackerSide.toLowerCase()} slot ${cue.attackerSlot + 1} ${verb} ${cue.targetSide.toLowerCase()} slot ${cue.targetSlot + 1}, absorbed by its shield`;
+    }
     case "died":
       return `  ${cue.side.toLowerCase()} slot ${cue.slot + 1} (${cue.name}) dies`;
     case "reborn":
@@ -70,16 +78,21 @@ function buildBeatSteps(log, boards) {
       continue;
     }
     if (type === "Struck" || type === "StruckBack") {
+      // A StruckBack is the defensive answer a struck Unit makes in the same
+      // motion, not a second, independent attack -- distinguished in the
+      // narration ("strikes back at") so two Units trading blows in one Beat
+      // doesn't read as the same line printed twice.
+      const answering = type === "StruckBack";
       const attackerSide = data.by;
       const targetSide = otherSide(data.by);
-      const attackerSlot = type === "Struck" ? data.attacker_slot - 1 : data.slot - 1;
+      const attackerSlot = answering ? data.slot - 1 : data.attacker_slot - 1;
       const targetSlot = data.target_slot - 1;
       const next = log[i + 1] && Object.entries(log[i + 1])[0];
       if (next && next[0] === "ShieldAbsorbed" && next[1].side === targetSide && next[1].slot - 1 === targetSlot) {
-        current.cues.push({ kind: "absorb", attackerSide, attackerSlot, targetSide, targetSlot });
+        current.cues.push({ kind: "absorb", answering, attackerSide, attackerSlot, targetSide, targetSlot });
         i++; // consume the paired ShieldAbsorbed
       } else {
-        current.cues.push({ kind: "hit", attackerSide, attackerSlot, targetSide, targetSlot, damage: data.damage });
+        current.cues.push({ kind: "hit", answering, attackerSide, attackerSlot, targetSide, targetSlot, damage: data.damage });
       }
       continue;
     }
