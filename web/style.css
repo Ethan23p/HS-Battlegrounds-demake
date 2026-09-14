@@ -162,9 +162,20 @@ body {
   flex-wrap: wrap;
 }
 
+/* `display: flex` above otherwise beats the UA stylesheet's `[hidden] {
+   display: none }` -- author rules always win over UA ones at equal
+   specificity, hidden or not -- so prep and playback controls would both
+   render at once instead of the [hidden] one disappearing. */
+.controls[hidden] { display: none; }
+
 .controls .stepper {
   display: flex;
   gap: 4px;
+}
+
+.controls .prep-hint {
+  font-size: 12px;
+  color: var(--ink-dim);
 }
 
 button.transport {
@@ -221,6 +232,8 @@ main {
 
 .battlefield {
   position: relative;
+  min-width: 0; /* a grid item of main -- same auto-min-width issue up the
+                   whole chain to .row's overflow-x */
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -281,6 +294,10 @@ main {
 .rank {
   display: flex;
   flex-direction: column;
+  min-width: 0; /* same reason as .row and .unit: a flex item's default
+                   min-width is its content's natural size, which would
+                   otherwise defeat .row's overflow-x scrolling by growing
+                   every ancestor up the chain to fit it instead */
   gap: 6px;
 }
 
@@ -305,10 +322,20 @@ main {
 #player-rank .rank-label { color: var(--indigo); }
 #player-rank .dot { background: var(--indigo); }
 
+/* A row of 8 real cards (name, stats, badges) can't be squeezed to fit any
+   viewport and stay legible -- shrinking columns to fit is fighting the
+   wrong battle. A flex row that scrolls instead is the standard answer for
+   more content than fits on touch: cards grow to fill a wide screen, but
+   never shrink below a legible size (flex-shrink: 0 on the card itself,
+   below) -- the row scrolls past that point rather than compressing. */
 .row {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(40px, 1fr));
+  display: flex;
+  min-width: 0; /* .row is itself a flex child (of .rank); without this its
+                   own content can push it wider than its container instead
+                   of scrolling within it */
   gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .spine {
@@ -334,6 +361,12 @@ main {
 
 .unit {
   position: relative;
+  flex: 1 1 60px; /* grows to fill a wide row; 60px is the floor it refuses
+                      to shrink below (flex-shrink: 0) -- the row scrolls
+                      past that point instead of squeezing cards illegible */
+  flex-shrink: 0;
+  max-width: 100px; /* caps how wide a card grows on a very wide screen */
+  overflow: hidden; /* clip boundary for .name's ellipsis */
   aspect-ratio: 3 / 4;
   background: var(--panel-2);
   border: 1.5px solid var(--line);
@@ -421,6 +454,24 @@ main {
 
 .unit.dying { opacity: 0; transform: scale(0.7); }
 .unit.dead { display: none; }
+
+/* Prep: drag your own party into order before the fight. */
+.unit.draggable {
+  cursor: grab;
+  touch-action: none; /* otherwise a touch-drag scrolls the page instead */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.unit.dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+  box-shadow: 0 10px 18px -6px rgb(0 0 0 / 35%);
+  transition: none; /* follows the pointer 1:1, no easing lag */
+  z-index: 5;
+}
+
+.unit.drop-target { border-color: var(--indigo); border-style: dashed; }
 
 /* A Unit at 0 health hasn't died yet -- bg-sim buries it at the top of the
    next Beat, not this one (Departure 2). Otherwise that rule is invisible:
@@ -525,3 +576,4 @@ main {
   background: var(--panel-2);
   border-color: var(--line);
 }
+

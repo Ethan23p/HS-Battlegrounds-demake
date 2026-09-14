@@ -109,9 +109,34 @@ toolchain; the seed argument is a JS `BigInt` (`1n`), not a `Number`, since it's
 `u64`; and `app.js` being a module now means `file://` no longer works at all for local
 testing — `python3 -m http.server` in `web/` (documented in `web/README.md`).
 
-**Drag-to-reorder a party before a fight — not yet started.** Via Pointer Events
-(mouse/touch/pen in one path), snapping to the engine's own left-packing rather than a
-client-side guess at it. Still one-shot: arrange, then fight, no persistent run.
+**Drag-to-reorder a party before a fight — done. 0.2 is complete.** A `Prep` screen
+(new default state; the fight viewer is now entered via a "Fight" button, and a
+"Rearrange" button returns to it, keeping the current arrangement) with the player's
+row draggable via Pointer Events -- one code path for mouse, touch and pen -- verified
+against a real mobile-device emulation (iPhone 13), not just a desktop mouse. Still
+one-shot: arrange, then fight, no persistent run.
+
+The roadmap's open question about client-side packing logic turned out not to apply:
+a reorder only *permutes* the Units already there, it never opens or closes a gap, so
+there's nothing to compact and nothing of `Party::compact`'s rule to defer to bg-sim
+or reimplement -- `Prep.boardJson()` is a plain array splice, packed by construction.
+A fresh seed each fight (`Date.now()`), so re-fighting the same arrangement doesn't
+replay identically -- `Reset` on the fight itself still replays that one exactly, only
+"Fight" from Prep draws a new one.
+
+Three real, non-obvious CSS/JS bugs found and fixed along the way, not left standing:
+a grid item's implicit `min-width: auto` (its content's own min-content size) beat the
+`minmax()` floor meant to constrain it -- fixed at every level of the flex chain
+between the scrollable row and the page edge, not just the row itself; `[hidden]`
+loses to any later same-specificity `display` rule regardless of matching, since
+author styles always beat the UA stylesheet at equal specificity; and a media query
+placed earlier in the file than the base rules it was meant to override always lost,
+matching or not, since source order still decides equal-specificity ties. The mobile
+layout itself was redone rather than patched once this surfaced: eight cards with real
+content (name, stats, badges) can't be shrunk to fit a phone and stay legible, so the
+row now scrolls horizontally at a fixed, always-legible card size instead of
+compressing columns to fit -- the standard answer for more content than fits on
+touch, and it stopped an entire class of "make it 1px narrower" chase.
 
 ### 0.3 — A shop and a run
 Buy/sell/reroll, gold, multiple rounds. First version that's a game rather than a

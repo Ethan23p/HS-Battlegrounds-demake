@@ -28,7 +28,12 @@
       </div>
     </div>
 
-    <div class="controls">
+    <div class="controls" id="prep-controls">
+      <span class="prep-hint">Drag your party into order</span>
+      <button class="transport" id="fight">⚔ Fight</button>
+    </div>
+
+    <div class="controls" id="playback-controls" hidden>
       <div class="stepper">
         <button class="transport" id="prev" aria-label="Previous beat">‹ Prev</button>
         <button class="transport" id="next" aria-label="Next beat">Next ›</button>
@@ -36,6 +41,7 @@
       <button class="transport" id="play">▶ Play</button>
       <button class="transport" id="reset">↺ Reset</button>
       <button class="transport" id="skip">⏭ Skip to end</button>
+      <button class="transport" id="rearrange">⇤ Rearrange</button>
       <span class="speed-label">Speed</span>
       <select id="speed">
         <option value="600">Slow</option>
