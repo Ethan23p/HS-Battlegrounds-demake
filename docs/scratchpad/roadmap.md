@@ -59,6 +59,29 @@ Settled as engineering, no design input needed: pacing is a dropdown (slow/norma
 fast) rather than a fixed rate; units are colored cards with name/stats/keyword
 badges, no art yet — revisit only if the 0.5+ polish pass wants real sprites.
 
+**Playback intentionality pass — done.** Ethan: it only played through once until a
+refresh, and asked for replayability, a step-back-and-forth switcher, and damage
+numbers that read as part of the Beat rather than flashing and vanishing; also asked
+Claude to design the rest itself rather than just those two asks. Landed together
+since both hinge on the same idea: everything shown belongs to *the Beat currently
+revealed*, not a timer — see `Player.revealStep(index)` in `app.js`, the single place
+that renders a position, used by stepping, replaying, and skipping alike.
+
+Added, watching as a spectator rather than just implementing the two literal asks:
+attacker→target arrows (colored by side, dashed when absorbed, offset apart when a
+blow and its answer share the same two cards — the exact "trading blows" case that
+motivated the earlier narration fix); the struck stat itself flashes so the floating
+number and the card read as one event; a distinct pulsing "critical" state for a Unit
+sitting at 0 health awaiting burial (Departure 2's death-timing was otherwise
+invisible — the card just read 0 and looked normal until it vanished a Beat later); a
+shimmer on a rank when it closes ranks (left-anchoring had no visual of its own
+either). Two real bugs found and fixed while building it, not left standing: `Skip to
+end` jumping straight to the closing step without ever revealing the last Beat left
+the *previous* overlay on screen instead of the finishing blow (now computed from
+`steps`/`index` alone, path-independent); and an SVG with no explicit size clips to a
+300×150 default regardless of its CSS box, silently truncating the second arrow of
+almost every pair.
+
 **Debt — resolved.** `Resolution` now carries `boards`, a Board snapshot already fully
 resolved for every Beat (bury, shield-break, compaction, every Struck/StruckBack/
 Reborn applied). `app.js` no longer reconstructs state from the log at all — narration

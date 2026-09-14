@@ -162,6 +162,11 @@ body {
   flex-wrap: wrap;
 }
 
+.controls .stepper {
+  display: flex;
+  gap: 4px;
+}
+
 button.transport {
   font-family: var(--font-ui);
   background: var(--panel);
@@ -215,6 +220,7 @@ main {
 /* ------------------------------------------------------------- battlefield */
 
 .battlefield {
+  position: relative;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -222,6 +228,54 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0;
+}
+
+/* Arrows and damage callouts for the Beat currently on screen -- both sit in
+   one shared coordinate space (the battlefield's own box) so an arrow and
+   the label at its tip always land in the same place. Cleared and redrawn
+   whenever a different Beat is revealed; between reveals they simply stay,
+   which is the fix for numbers that used to flash and vanish before they
+   could be read. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.overlay.arrows path {
+  fill: none;
+  stroke-width: 2;
+  opacity: 0.6;
+}
+
+.overlay.arrows path.absorbed {
+  stroke-dasharray: 3 4;
+  opacity: 0.45;
+}
+
+.dmg-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font-family: var(--font-data);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1.5px solid var(--crimson);
+  color: var(--crimson);
+  white-space: nowrap;
+  animation: label-in 180ms ease-out;
+}
+
+.dmg-label.absorbed {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+@keyframes label-in {
+  0% { opacity: 0; transform: translate(-50%, -80%) scale(0.7); }
+  100% { opacity: 1; transform: translate(-50%, -100%) scale(1); }
 }
 
 .rank {
@@ -368,26 +422,45 @@ main {
 .unit.dying { opacity: 0; transform: scale(0.7); }
 .unit.dead { display: none; }
 
-.dmg-pop {
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: var(--font-data);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--crimson);
-  pointer-events: none;
-  animation: pop 700ms ease-out forwards;
+/* A Unit at 0 health hasn't died yet -- bg-sim buries it at the top of the
+   next Beat, not this one (Departure 2). Otherwise that rule is invisible:
+   the card would just read "0" and look like any other card until it
+   vanishes a Beat later. */
+.unit.critical { animation: critical-pulse 1000ms ease-in-out infinite; }
+.unit.critical .stats .hp { color: var(--crimson); }
+
+@keyframes critical-pulse {
+  0%, 100% { border-color: var(--crimson); }
+  50% { border-color: var(--line); }
 }
 
-@keyframes pop {
-  0% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, -22px); }
+/* Flashed on a hit's target the instant its new (already-resolved) health
+   is revealed, so the floating damage callout and the stat it explains read
+   as one event instead of two unrelated changes. */
+.stats .hp.hit-flash { color: var(--crimson); }
+.stats .hp { transition: color 700ms ease; }
+
+/* "The party closes ranks" is a real rule (left-anchoring) with no visual
+   of its own otherwise -- units just silently swap slots. */
+.row.closed-ranks::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--line-strong);
+  animation: rank-shimmer 500ms ease-out;
+}
+
+.row { position: relative; }
+
+@keyframes rank-shimmer {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .unit, .dmg-pop { transition: none; animation: none; }
+  .unit, .dmg-label, .row.closed-ranks::after { transition: none; animation: none; }
+  .unit.critical { border-color: var(--crimson); }
 }
 
 /* --------------------------------------------------------------- dispatch */
