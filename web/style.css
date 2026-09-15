@@ -79,52 +79,119 @@
 
 * { box-sizing: border-box; }
 
-body {
+html, body {
+  height: 100%;
   margin: 0;
+}
+
+body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-ui);
-  padding: 20px 16px;
+  /* The stage is the only thing on the page and fills the viewport itself
+     -- nothing here should ever need page-level scroll. */
+  overflow: hidden;
 }
 
-.wrap {
-  max-width: 980px;
-  margin: 0 auto;
+/* One container standing for the whole screen; everything else is anchored
+   inside it directly instead of through a chain of nested flex/grid boxes
+   that can each separately renegotiate width against their content (wrap >
+   main > battlefield > rank > row, in the previous version). That chain was
+   the actual cause of a card visibly overflowing its own box: a grid track
+   several levels up could be squeezed narrower than the row's real content,
+   and nothing forced the row to shrink to match, so cards poked past a
+   border that had already been sized smaller than they were. With one
+   shared parent and two independently-positioned children (below), there's
+   no shared track left for either to fight over. */
+.stage {
+  position: relative;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  /* One shared budget, computed once, instead of .info and the card row
+     each independently guessing a share of the viewport and hoping they
+     don't collide -- .unit (below) sizes its width directly off what's
+     left after .info's own column, so the two can't fight over space they
+     were never actually dividing consistently in the first place. */
+  --info-w: clamp(140px, 33vw, 360px);
+  --stage-margin: 16px;
+  /* What's left of the viewport for one card, after reserving .info's
+     column and .playfield's own padding/gaps: (playfield's own max-width,
+     inlined here) minus 8 cards' worth of .row gaps (7 * 6px) and
+     .playfield's horizontal padding (2 * 16px). */
+  --card-w-budget: calc((100vw - var(--info-w) - 3 * var(--stage-margin) - 74px) / 8);
+}
+
+/* Landscape is the supported orientation -- eight real cards per row never
+   fit a portrait phone at a legible size (see .unit below). Rather than
+   gate on it with a "please rotate" prompt, the stage is rendered as
+   landscape unconditionally: rotated 90deg to fill a portrait viewport, the
+   standard fix for a phone browser that won't reliably reflow on an actual
+   physical rotation. No blocking prompt, nothing to wait on. */
+@media (max-width: 760px) and (orientation: portrait) {
+  .stage {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vh;
+    height: 100vw;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+  }
+}
+
+/* The play field: anchored center-left, sized by its own content (the rows
+   of cards) rather than by any width handed down to it -- there is nothing
+   above it to negotiate with. */
+.playfield {
+  position: absolute;
+  left: var(--stage-margin);
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: calc(100vw - var(--info-w) - 3 * var(--stage-margin));
+  /* Without this, a child that still wants to be wider than max-width (a
+     flex column's cross-axis stretch can force that) renders the box past
+     its own computed width instead of being capped by it -- the same
+     "cards past their own container" failure one level up, just caused by
+     .playfield itself now rather than an ancestor squeezing it. `hidden`
+     makes the rendered box actually match what max-width says it is. */
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  /* Extra top padding, not just enough for the rank label: a damage label
+     stacks upward off a card (--stack in .dmg-label) when it takes more
+     than one hit in a Beat, and now that overflow is clipped at this box's
+     edge (above), a stacked label needs headroom inside the padding to not
+     be cut off the moment it happens near the top rank. */
+  padding: 44px 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
-/* ---------------------------------------------------------------- masthead */
-
-.masthead {
+/* Controls, the readout, the outcome banner, and the log named after this
+   whole thing -- Beat Ledger -- as floating cards anchored top-right,
+   independent of the playfield's own box so neither ever competes with the
+   other for width. One vertically-scrolling column: a later addition is
+   just another child here, not a new layout slot. */
+.info {
+  position: absolute;
+  top: var(--stage-margin);
+  right: var(--stage-margin);
+  width: var(--info-w);
+  max-height: calc(100dvh - 2 * var(--stage-margin));
+  overflow-y: auto;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 20px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid var(--line-strong);
+  flex-direction: column;
+  gap: 12px;
 }
 
-.masthead .title {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.masthead h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.masthead .subtitle {
-  font-size: 12px;
-  color: var(--ink-faint);
-  font-family: var(--font-data);
-}
+/* The recurring one: a flex column's items default to min-width: auto on
+   the cross axis, their own min-content width -- .controls' wrapped button
+   row, in particular, can want to be wider than .info's own explicit width
+   and force it wider still, undoing the shared budget .unit reasons from
+   (see .stage above). Same fix as every earlier instance of this. */
+.info > * { min-width: 0; }
 
 .readout {
   display: flex;
@@ -137,7 +204,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  align-items: flex-end;
+  align-items: flex-start;
 }
 
 .readout .field .label {
@@ -152,7 +219,6 @@ body {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   min-width: 2.4em;
-  text-align: right;
 }
 
 .controls {
@@ -164,6 +230,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px 16px;
+  box-shadow: 0 4px 16px -4px rgb(0 0 0 / 12%);
 }
 
 /* `display: flex` above otherwise beats the UA stylesheet's `[hidden] {
@@ -217,67 +284,6 @@ button.transport:focus-visible { outline: 2px solid var(--indigo); outline-offse
   letter-spacing: 0.08em;
   color: var(--ink-faint);
   margin-right: -4px;
-}
-
-/* ------------------------------------------------------------------ layout */
-
-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-
-/* The right column: controls, the event log, and wherever a later section
-   lands -- one vertically-scrolling stack rather than a layout slot per
-   thing, so adding a section later is just another child, no new grid
-   track. `sticky` + a viewport-relative cap keeps it in view and scrolling
-   internally rather than growing the page past the fold on a short screen. */
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-  position: sticky;
-  top: 20px;
-  max-height: calc(100dvh - 40px);
-  overflow-y: auto;
-}
-
-/* Landscape is the supported orientation -- eight real cards per row never
-   fit a portrait phone at a legible size, and shrinking them to try was the
-   wrong fight (see .unit below). A narrow *and* upright viewport gets asked
-   to rotate instead of receiving a squeezed layout. */
-.rotate-prompt { display: none; }
-
-@media (max-width: 760px) and (orientation: portrait) {
-  .wrap { display: none; }
-  .rotate-prompt {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100dvh;
-    text-align: center;
-    padding: 32px;
-    font-size: 15px;
-    color: var(--ink-dim);
-  }
-}
-
-/* ------------------------------------------------------------- battlefield */
-
-.battlefield {
-  position: relative;
-  min-width: 0; /* a grid item of main -- its content's own min-content size
-                   would otherwise beat main's minmax() floor and keep the
-                   dispatch column too narrow on a mid-width viewport */
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 18px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
 }
 
 /* Arrows for the Beat currently on screen, in the battlefield's own
@@ -336,10 +342,6 @@ main {
 .rank {
   display: flex;
   flex-direction: column;
-  min-width: 0; /* same reason as .battlefield above: a flex item's default
-                   min-width is its content's own natural size, which would
-                   otherwise force this column wider than main's own floor
-                   lets it be */
   gap: 6px;
 }
 
@@ -364,26 +366,14 @@ main {
 #player-rank .rank-label { color: var(--indigo); }
 #player-rank .dot { background: var(--indigo); }
 
-/* A row of cards sized off the viewport (below), not negotiated against its
-   container: `flex: 0 0 auto` means nothing here grows or shrinks to fit
-   the row, so the row can never need to squeeze a card to fit a width --
-   the min-width/auto fight that caused three separate bugs in the old
-   shrink-or-scroll design doesn't have anything left to negotiate. `overflow
-   -x` stays only as a safety net (e.g. a future >8-wide party); landscape
-   sizing means it shouldn't normally engage. */
-/* No overflow-x here on purpose. Viewport-driven card sizing (.unit, below)
-   makes a full row of cards fit landscape by construction, so the old
-   scroll-if-it-doesn't-fit safety net has nothing left to catch -- and it
-   can't coexist with a card's damage label escaping upward anyway: the CSS
-   overflow spec always forces overflow-y to `auto` the moment overflow-x
-   isn't `visible`, on the same element, even if overflow-y is set to
-   `visible` explicitly -- there is no combination of the two properties
-   that scrolls one axis while leaving the other genuinely unclipped. If a
-   future wider party ever needs its own scroll, it needs a container that
-   doesn't also host anything positioned outside its own box. */
+/* A row of cards sized off the viewport (`.unit`, below), not negotiated
+   against a container -- nothing between here and .stage imposes a width
+   narrower than the row's own content, so there's nothing left to squeeze
+   against. No overflow-x safety net either: `.unit`'s own sizing already
+   accounts for available width, not just height, so a full row fits by
+   construction rather than needing a scroll fallback. */
 .row {
   display: flex;
-  min-width: 0;
   gap: 6px;
 }
 
@@ -410,13 +400,16 @@ main {
 
 .unit {
   position: relative;
-  /* Height is a fraction of the viewport, not of the row it sits in --
-     "anchor to the screen, reason in proportions" -- so its size is decided
-     once, top-down, and never renegotiated against a sibling or ancestor.
-     `flex: 0 0 auto` means it doesn't grow or shrink to fill or fit
-     anything; width simply follows from aspect-ratio. */
+  /* Sized off the viewport, not off the row it sits in -- "anchor to the
+     screen, reason in proportions" -- so it's decided once, top-down, never
+     renegotiated against a sibling or ancestor. `--card-w-budget` (.stage)
+     is the real leftover width after .info's own column, not an independent
+     guess at a fraction of the full viewport -- that's what actually fixed
+     a full row overflowing its box in a wide-but-short preview pane: the
+     old vh-only figure had no idea .info was there at all. `9vh` still
+     caps it on a tall, narrow window where width alone would go oversized. */
   flex: 0 0 auto;
-  height: clamp(64px, 11vh, 108px);
+  width: clamp(20px, min(var(--card-w-budget), 11vh), 84px);
   aspect-ratio: 3 / 4;
   background: var(--panel-2);
   border: 1.5px solid var(--line);
@@ -596,6 +589,7 @@ main {
   flex-direction: column;
   gap: 8px;
   min-height: 0;
+  box-shadow: 0 4px 16px -4px rgb(0 0 0 / 12%);
 }
 
 /* A real button, not a label div -- it's what minimizes the log. Styled to
@@ -653,14 +647,16 @@ main {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  min-height: 1.6em;
   padding: 10px;
   border-radius: var(--radius);
   border: 1px solid transparent;
 }
 
+#outcome:empty { display: none; }
+
 #outcome:not(:empty) {
   background: var(--panel-2);
   border-color: var(--line);
+  box-shadow: 0 4px 16px -4px rgb(0 0 0 / 12%);
 }
 

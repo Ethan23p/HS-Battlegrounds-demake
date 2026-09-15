@@ -212,6 +212,46 @@ via a CSS sibling selector, no JS-held display state. Verified: collapse/expand 
 cleanly (`display: none` -> `block`), and drag/fight/skip/play/reset/rearrange all still
 work after the DOM move (control element ids didn't change, only their container).
 
+**Single stage, no page header, forced-landscape mobile — done.** Ethan's read after
+actually viewing it on his phone and in a narrow preview: no header (a game doesn't need
+one; "Beat Ledger" was meant to name the log, not the page), a real vertical-scroll bug,
+and the playfield visibly squashing in a narrow preview pane -- his diagnosis, container
+min-width fighting, was right, but not for the reason it first looked like:
+
+- `web/index.html`'s `<main>` grid, `.wrap`, and `<header class="masthead">` are gone.
+  One `.stage` (`100vw x 100dvh`, `overflow: hidden` -- no page scroll is possible at
+  all now) holds two independently-positioned children: `.playfield` anchored center-left
+  and sized by its own content (nothing above it imposes a narrower width to negotiate
+  against), and `.info` -- the controls, readout, outcome banner, and the log (now titled
+  "Beat Ledger," its actual name) -- floating top-right as its own card stack, unrelated
+  in the DOM to the playfield at all. Four levels to `.unit` now (`stage > playfield >
+  rank > row`), down from six.
+- The squash turned out to be **two** bugs, not one. First, a real regression: an edit
+  during this same pass accidentally dropped the page's global `* { box-sizing:
+  border-box }` rule, so every border and padding was quietly adding to widths instead of
+  being included in them -- every measurement looked ~6-30px wider than the CSS said,
+  which is what made the second bug look worse than it was. Second, the actual reported
+  issue: `.info`'s 33vw width and `.unit`'s card size were two independent guesses about
+  available space that had no way of knowing about each other, so they could still
+  collide once corrected. Fixed by computing one shared budget on `.stage`
+  (`--info-w`, `--card-w-budget`) that `.unit` derives its width from directly --
+  the real leftover space after `.info`'s own column, not a guess -- so the two can't
+  fight over width they were never actually dividing consistently. `.playfield` also
+  picked up `overflow: hidden` once it had a `max-width`: without it, a flex child that
+  still wanted to be wider rendered the box past its own computed width instead of being
+  capped by it, the same failure one container level higher than where it started.
+  Verified across nine viewport widths (1000px down to 390px): zero card-overflow,
+  zero playfield/info overlap, at every one.
+- Mobile: no more rotate-prompt. `.stage` is unconditionally rendered landscape on a
+  narrow+portrait viewport via the standard CSS fix for a phone browser that won't
+  reliably reflow on an actual physical rotation -- `rotate(90deg) translateY(-100%)`
+  with `transform-origin: top left`, sized `100vh x 100vw` so it exactly fills a portrait
+  viewport rotated. No blocking prompt, nothing to wait on; verified the transform
+  resolves correctly (`matrix(0, 1, -1, 0, 390, 0)` for a 390x844 viewport) and that
+  drag-to-reorder still works under it -- `getBoundingClientRect` and pointer
+  `clientX`/`clientY` are both already in post-transform screen space, so the existing
+  hit-testing needed no special-casing for the rotation at all.
+
 ### 0.3 — A shop and a run
 Buy/sell/reroll, gold, multiple rounds. First version that's a game rather than a
 fight viewer. All three blockers from the previous draft are resolved:

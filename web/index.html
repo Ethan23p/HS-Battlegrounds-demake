@@ -9,15 +9,39 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="rotate-prompt">Rotate your device to landscape to play.</div>
-<div class="wrap">
-
-  <header class="masthead">
-    <div class="title">
-      <h1>Beat Ledger</h1>
-      <span class="subtitle">bg-sim · Action Phase replay</span>
+<div class="stage">
+  <div class="playfield" id="battlefield">
+    <div class="rank" id="opposing-rank">
+      <div class="rank-label"><span class="dot"></span>Opposing party</div>
+      <div class="row" id="opposing-row"></div>
     </div>
 
+    <div class="spine">Action Phase</div>
+
+    <div class="rank" id="player-rank">
+      <div class="rank-label"><span class="dot"></span>Player party</div>
+      <div class="row" id="player-row"></div>
+    </div>
+
+    <svg class="overlay arrows" aria-hidden="true">
+      <defs>
+        <marker id="arrow-player" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L8,4 L0,8 Z" style="fill: var(--indigo)"></path>
+        </marker>
+        <marker id="arrow-opposing" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L8,4 L0,8 Z" style="fill: var(--rust)"></path>
+        </marker>
+      </defs>
+      <g id="arrow-lines"></g>
+    </svg>
+  </div>
+
+  <!-- Everything that isn't the play field itself: the beat/result readout,
+       controls, the outcome banner, and the log named after this whole
+       thing -- Beat Ledger. Floating cards anchored top-right, independent
+       of the playfield's own box, so neither ever competes with the other
+       for width. -->
+  <aside class="info">
     <div class="readout">
       <div class="field">
         <span class="label">Beat</span>
@@ -28,74 +52,39 @@
         <span class="value" id="result-value">—</span>
       </div>
     </div>
-  </header>
 
-  <main>
-    <div class="battlefield" id="battlefield">
-      <div class="rank" id="opposing-rank">
-        <div class="rank-label"><span class="dot"></span>Opposing party</div>
-        <div class="row" id="opposing-row"></div>
-      </div>
-
-      <div class="spine">Action Phase</div>
-
-      <div class="rank" id="player-rank">
-        <div class="rank-label"><span class="dot"></span>Player party</div>
-        <div class="row" id="player-row"></div>
-      </div>
-
-      <svg class="overlay arrows" aria-hidden="true">
-        <defs>
-          <marker id="arrow-player" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M0,0 L8,4 L0,8 Z" style="fill: var(--indigo)"></path>
-          </marker>
-          <marker id="arrow-opposing" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M0,0 L8,4 L0,8 Z" style="fill: var(--rust)"></path>
-          </marker>
-        </defs>
-        <g id="arrow-lines"></g>
-      </svg>
+    <div class="controls" id="prep-controls">
+      <span class="prep-hint">Drag your party into order</span>
+      <button class="transport" id="fight">⚔ Fight</button>
     </div>
 
-    <!-- Everything that isn't the play field itself: controls, the event
-         log, and wherever a later addition (settings, a shop panel, ...)
-         lands. One vertically-scrolling column so new sections just stack
-         instead of needing their own layout slot. -->
-    <aside class="sidebar">
-      <div class="controls" id="prep-controls">
-        <span class="prep-hint">Drag your party into order</span>
-        <button class="transport" id="fight">⚔ Fight</button>
+    <div class="controls" id="playback-controls" hidden>
+      <div class="stepper">
+        <button class="transport" id="prev" aria-label="Previous beat">‹ Prev</button>
+        <button class="transport" id="next" aria-label="Next beat">Next ›</button>
       </div>
+      <button class="transport" id="play">▶ Play</button>
+      <button class="transport" id="reset">↺ Reset</button>
+      <button class="transport" id="skip">⏭ Skip to end</button>
+      <button class="transport" id="rearrange">⇤ Rearrange</button>
+      <span class="speed-label">Speed</span>
+      <select id="speed">
+        <option value="600">Slow</option>
+        <option value="300" selected>Normal</option>
+        <option value="100">Fast</option>
+      </select>
+    </div>
 
-      <div class="controls" id="playback-controls" hidden>
-        <div class="stepper">
-          <button class="transport" id="prev" aria-label="Previous beat">‹ Prev</button>
-          <button class="transport" id="next" aria-label="Next beat">Next ›</button>
-        </div>
-        <button class="transport" id="play">▶ Play</button>
-        <button class="transport" id="reset">↺ Reset</button>
-        <button class="transport" id="skip">⏭ Skip to end</button>
-        <button class="transport" id="rearrange">⇤ Rearrange</button>
-        <span class="speed-label">Speed</span>
-        <select id="speed">
-          <option value="600">Slow</option>
-          <option value="300" selected>Normal</option>
-          <option value="100">Fast</option>
-        </select>
-      </div>
+    <div id="outcome"></div>
 
-      <section class="dispatch">
-        <button class="dispatch-label" id="log-toggle" aria-expanded="true" aria-controls="log">
-          <span>Event log</span>
-          <span class="chevron" aria-hidden="true">▾</span>
-        </button>
-        <div class="lines" id="log"></div>
-      </section>
-    </aside>
-  </main>
-
-  <footer id="outcome"></footer>
-
+    <section class="dispatch">
+      <button class="dispatch-label" id="log-toggle" aria-expanded="true" aria-controls="log">
+        <span>Beat Ledger</span>
+        <span class="chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="lines" id="log"></div>
+    </section>
+  </aside>
 </div>
 
 <script type="module" src="app.js"></script>
