@@ -126,6 +126,7 @@ const rowEl = { Player: document.getElementById("player-row"), Opposing: documen
 const arrowSvgEl = document.querySelector(".overlay.arrows");
 const arrowLinesEl = document.getElementById("arrow-lines");
 const logEl = document.getElementById("log");
+const logToggleEl = document.getElementById("log-toggle");
 const outcomeEl = document.getElementById("outcome");
 const beatValueEl = document.getElementById("beat-value");
 const resultValueEl = document.getElementById("result-value");
@@ -668,6 +669,10 @@ async function boot() {
   resetBtn.addEventListener("click", () => player?.reset());
   skipBtn.addEventListener("click", () => player?.skipToEnd());
   rearrangeBtn.addEventListener("click", () => enterPrep());
+  logToggleEl.addEventListener("click", () => {
+    const expanded = logToggleEl.getAttribute("aria-expanded") === "true";
+    logToggleEl.setAttribute("aria-expanded", String(!expanded));
+  });
 
   enterPrep();
 }

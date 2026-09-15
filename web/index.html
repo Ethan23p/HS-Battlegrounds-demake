@@ -28,28 +28,6 @@
         <span class="value" id="result-value">—</span>
       </div>
     </div>
-
-    <div class="controls" id="prep-controls">
-      <span class="prep-hint">Drag your party into order</span>
-      <button class="transport" id="fight">⚔ Fight</button>
-    </div>
-
-    <div class="controls" id="playback-controls" hidden>
-      <div class="stepper">
-        <button class="transport" id="prev" aria-label="Previous beat">‹ Prev</button>
-        <button class="transport" id="next" aria-label="Next beat">Next ›</button>
-      </div>
-      <button class="transport" id="play">▶ Play</button>
-      <button class="transport" id="reset">↺ Reset</button>
-      <button class="transport" id="skip">⏭ Skip to end</button>
-      <button class="transport" id="rearrange">⇤ Rearrange</button>
-      <span class="speed-label">Speed</span>
-      <select id="speed">
-        <option value="600">Slow</option>
-        <option value="300" selected>Normal</option>
-        <option value="100">Fast</option>
-      </select>
-    </div>
   </header>
 
   <main>
@@ -79,9 +57,40 @@
       </svg>
     </div>
 
-    <aside class="dispatch">
-      <div class="dispatch-label">Event log</div>
-      <div class="lines" id="log"></div>
+    <!-- Everything that isn't the play field itself: controls, the event
+         log, and wherever a later addition (settings, a shop panel, ...)
+         lands. One vertically-scrolling column so new sections just stack
+         instead of needing their own layout slot. -->
+    <aside class="sidebar">
+      <div class="controls" id="prep-controls">
+        <span class="prep-hint">Drag your party into order</span>
+        <button class="transport" id="fight">⚔ Fight</button>
+      </div>
+
+      <div class="controls" id="playback-controls" hidden>
+        <div class="stepper">
+          <button class="transport" id="prev" aria-label="Previous beat">‹ Prev</button>
+          <button class="transport" id="next" aria-label="Next beat">Next ›</button>
+        </div>
+        <button class="transport" id="play">▶ Play</button>
+        <button class="transport" id="reset">↺ Reset</button>
+        <button class="transport" id="skip">⏭ Skip to end</button>
+        <button class="transport" id="rearrange">⇤ Rearrange</button>
+        <span class="speed-label">Speed</span>
+        <select id="speed">
+          <option value="600">Slow</option>
+          <option value="300" selected>Normal</option>
+          <option value="100">Fast</option>
+        </select>
+      </div>
+
+      <section class="dispatch">
+        <button class="dispatch-label" id="log-toggle" aria-expanded="true" aria-controls="log">
+          <span>Event log</span>
+          <span class="chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="lines" id="log"></div>
+      </section>
     </aside>
   </main>
 

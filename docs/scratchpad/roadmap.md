@@ -199,6 +199,19 @@ roster order; fight/skip-to-end/reset/play/rearrange all still transition correc
 Beat with a mutual trade renders exactly one arrow per engaged pair with each blow's own
 stacked damage figure.
 
+**Two-column layout, sidebar as one scrolling stack — done.** Ethan's explicit shape:
+play field on the left, "information stuffs" on the right -- controls, the event log
+(minimizable), and wherever a later addition lands -- as one vertically-scrolling column
+rather than a slot per thing. `index.html`'s `<main>` still grids battlefield/sidebar
+(unchanged), but the masthead no longer carries the transport controls; `.sidebar` is a
+new `<aside>` holding `.controls` (now styled as its own card, matching `.dispatch`) and
+the event log in order, `position: sticky` with a viewport-relative `max-height` so it
+scrolls in place rather than growing the page past the fold. The log's own heading is now
+a real `<button id="log-toggle">` toggling `aria-expanded`; collapsing it hides `.lines`
+via a CSS sibling selector, no JS-held display state. Verified: collapse/expand round-trips
+cleanly (`display: none` -> `block`), and drag/fight/skip/play/reset/rearrange all still
+work after the DOM move (control element ids didn't change, only their container).
+
 ### 0.3 — A shop and a run
 Buy/sell/reroll, gold, multiple rounds. First version that's a game rather than a
 fight viewer. All three blockers from the previous draft are resolved:

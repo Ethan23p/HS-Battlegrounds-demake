@@ -160,6 +160,10 @@ body {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
 }
 
 /* `display: flex` above otherwise beats the UA stylesheet's `[hidden] {
@@ -222,6 +226,22 @@ main {
   grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
   gap: 16px;
   align-items: start;
+}
+
+/* The right column: controls, the event log, and wherever a later section
+   lands -- one vertically-scrolling stack rather than a layout slot per
+   thing, so adding a section later is just another child, no new grid
+   track. `sticky` + a viewport-relative cap keeps it in view and scrolling
+   internally rather than growing the page past the fold on a short screen. */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  position: sticky;
+  top: 20px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
 }
 
 /* Landscape is the supported orientation -- eight real cards per row never
@@ -578,7 +598,15 @@ main {
   min-height: 0;
 }
 
+/* A real button, not a label div -- it's what minimizes the log. Styled to
+   still read as the same small uppercase heading the rest of the sidebar's
+   sections use. */
 .dispatch .dispatch-label {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
   font-family: var(--font-data);
   font-size: 10px;
   letter-spacing: 0.1em;
@@ -588,9 +616,17 @@ main {
   padding-bottom: 6px;
 }
 
+.dispatch .dispatch-label:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+
+.dispatch .chevron { transition: transform 150ms ease; }
+.dispatch .dispatch-label[aria-expanded="false"] .chevron { transform: rotate(-90deg); }
+
+/* Collapsed: the log's content goes away, but the sidebar itself (not this
+   panel) is still what scrolls -- no separate scroll region nested inside
+   another, which is why .lines carries no max-height/overflow of its own. */
+.dispatch .dispatch-label[aria-expanded="false"] + .lines { display: none; }
+
 .dispatch .lines {
-  max-height: 440px;
-  overflow-y: auto;
   font-family: var(--font-data);
   font-size: 12px;
   line-height: 1.65;
