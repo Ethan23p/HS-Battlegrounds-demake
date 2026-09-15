@@ -252,6 +252,34 @@ min-width fighting, was right, but not for the reason it first looked like:
   `clientX`/`clientY` are both already in post-transform screen space, so the existing
   hit-testing needed no special-casing for the rotation at all.
 
+**Proportional sizing, not containment -- done.** Ethan's correction on the previous
+pass, with a marked-up screenshot: computing `.unit`'s width *from* `.info`'s reserved
+space (a shared `--card-w-budget` custom property) was still the parent/child
+containment pattern he'd asked to move away from, just expressed as a `calc()` instead of
+nested divs -- and the `overflow: hidden` that pass added to `.playfield` to make that
+budget hold was containment, doing exactly what he was flagging. His framing: for game
+UI, think of a container as a bounding box only, never as something whose size or padding
+other elements' layout depends on. Concretely landed:
+
+- `.unit` sizes off the viewport directly and independently -- `height: 16.6667vh`
+  (his 1/6 figure), `aspect-ratio: 1 / 1.16`, floored by `min-width: 5ch` (a letter-width
+  minimum, not an arbitrary px number) -- no `min()`, no shared budget, nothing derived
+  from `.info`'s width. Cards are visibly bigger as a direct result: the previous pass's
+  budget-capping had been shrinking them well below what the viewport actually allowed.
+- `.playfield` dropped `max-width` and `overflow: hidden` entirely -- it's a backdrop
+  that trails its content's real size, not a box content is fit into. Padding is `1ch`,
+  down from a fixed 44px top / 16-18px elsewhere; the extra top padding that pass added
+  for damage-label headroom is gone too, since nothing clips there anymore for a label to
+  need headroom against.
+- `.info` sizes itself proportionally (`33vw`, floored at `18ch`) on its own terms,
+  independent of `.playfield` -- no shared variable between them at all now.
+- Explicitly accepted, not fixed: nothing here clips or negotiates a smaller size to stay
+  on screen, so a sufficiently extreme viewport shape could still run a card off the
+  right edge or overlap `.info`. Ethan's own tradeoff -- "there's no guarantee the slots
+  won't go off the screen, but the width budget should check out" -- verified: at every
+  tested width down to a squashed 480x320 preview, cards fit without collision, without
+  any clipping mechanism holding that up.
+
 ### 0.3 — A shop and a run
 Buy/sell/reroll, gold, multiple rounds. First version that's a game rather than a
 fight viewer. All three blockers from the previous draft are resolved:

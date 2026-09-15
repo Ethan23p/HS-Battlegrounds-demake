@@ -94,32 +94,23 @@ body {
 }
 
 /* One container standing for the whole screen; everything else is anchored
-   inside it directly instead of through a chain of nested flex/grid boxes
-   that can each separately renegotiate width against their content (wrap >
-   main > battlefield > rank > row, in the previous version). That chain was
-   the actual cause of a card visibly overflowing its own box: a grid track
-   several levels up could be squeezed narrower than the row's real content,
-   and nothing forced the row to shrink to match, so cards poked past a
-   border that had already been sized smaller than they were. With one
-   shared parent and two independently-positioned children (below), there's
-   no shared track left for either to fight over. */
+   inside it directly and sized off the viewport, not off a parent box.
+   Ethan's correction on the previous pass: computing .unit's width *from*
+   .info's reserved space (a shared "budget" custom property) was still the
+   parent/child containment anti-pattern, just expressed as a calc()
+   instead of nested divs -- and the overflow:hidden that pass added to
+   .playfield to make that budget hold was containment, doing exactly what
+   he'd just asked to move away from. Each anchored element below is sized
+   independently off vh/vw proportions with a letter-width floor (`ch`),
+   nothing else -- no negotiation with a sibling, nothing clipped to force
+   an approximate fit. That means a slot's width budget always adds up
+   correctly, but there's no guarantee it stays on screen at every possible
+   viewport shape -- an accepted tradeoff, not an oversight. */
 .stage {
   position: relative;
   width: 100vw;
   height: 100dvh;
   overflow: hidden;
-  /* One shared budget, computed once, instead of .info and the card row
-     each independently guessing a share of the viewport and hoping they
-     don't collide -- .unit (below) sizes its width directly off what's
-     left after .info's own column, so the two can't fight over space they
-     were never actually dividing consistently in the first place. */
-  --info-w: clamp(140px, 33vw, 360px);
-  --stage-margin: 16px;
-  /* What's left of the viewport for one card, after reserving .info's
-     column and .playfield's own padding/gaps: (playfield's own max-width,
-     inlined here) minus 8 cards' worth of .row gaps (7 * 6px) and
-     .playfield's horizontal padding (2 * 16px). */
-  --card-w-budget: calc((100vw - var(--info-w) - 3 * var(--stage-margin) - 74px) / 8);
 }
 
 /* Landscape is the supported orientation -- eight real cards per row never
@@ -140,31 +131,20 @@ body {
   }
 }
 
-/* The play field: anchored center-left, sized by its own content (the rows
-   of cards) rather than by any width handed down to it -- there is nothing
-   above it to negotiate with. */
+/* The play field: anchored center-left. No width, no max-width, no
+   overflow control -- it's a backdrop that trails the size of its content
+   (the rows of cards, sized independently below), not a box that content
+   is fit into. Padding is a letter-width, matching the "minimum by letter
+   width" floor everything else uses, not a fixed pixel gap. */
 .playfield {
   position: absolute;
-  left: var(--stage-margin);
+  left: 1ch;
   top: 50%;
   transform: translateY(-50%);
-  max-width: calc(100vw - var(--info-w) - 3 * var(--stage-margin));
-  /* Without this, a child that still wants to be wider than max-width (a
-     flex column's cross-axis stretch can force that) renders the box past
-     its own computed width instead of being capped by it -- the same
-     "cards past their own container" failure one level up, just caused by
-     .playfield itself now rather than an ancestor squeezing it. `hidden`
-     makes the rendered box actually match what max-width says it is. */
-  overflow: hidden;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  /* Extra top padding, not just enough for the rank label: a damage label
-     stacks upward off a card (--stack in .dmg-label) when it takes more
-     than one hit in a Beat, and now that overflow is clipped at this box's
-     edge (above), a stacked label needs headroom inside the padding to not
-     be cut off the moment it happens near the top rank. */
-  padding: 44px 16px 18px;
+  padding: 1ch;
   display: flex;
   flex-direction: column;
 }
@@ -172,14 +152,17 @@ body {
 /* Controls, the readout, the outcome banner, and the log named after this
    whole thing -- Beat Ledger -- as floating cards anchored top-right,
    independent of the playfield's own box so neither ever competes with the
-   other for width. One vertically-scrolling column: a later addition is
-   just another child here, not a new layout slot. */
+   other for width. Sized proportionally off the viewport on its own terms,
+   not derived from or shared with anything else on the stage. One
+   vertically-scrolling column: a later addition is just another child
+   here, not a new layout slot. */
 .info {
   position: absolute;
-  top: var(--stage-margin);
-  right: var(--stage-margin);
-  width: var(--info-w);
-  max-height: calc(100dvh - 2 * var(--stage-margin));
+  top: 1ch;
+  right: 1ch;
+  width: 33vw;
+  min-width: 18ch;
+  max-height: calc(100dvh - 2ch);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -400,17 +383,18 @@ button.transport:focus-visible { outline: 2px solid var(--indigo); outline-offse
 
 .unit {
   position: relative;
-  /* Sized off the viewport, not off the row it sits in -- "anchor to the
-     screen, reason in proportions" -- so it's decided once, top-down, never
-     renegotiated against a sibling or ancestor. `--card-w-budget` (.stage)
-     is the real leftover width after .info's own column, not an independent
-     guess at a fraction of the full viewport -- that's what actually fixed
-     a full row overflowing its box in a wide-but-short preview pane: the
-     old vh-only figure had no idea .info was there at all. `9vh` still
-     caps it on a tall, narrow window where width alone would go oversized. */
+  /* Sized off the viewport directly, not off a shared budget with .info or
+     any other element -- "anchor to the screen, reason in proportions."
+     Height is a sixth of the viewport; width follows from the aspect
+     ratio, floored only by a letter-width minimum (5ch) so a card never
+     gets too small to read, not by how much room happens to be left after
+     something else claimed its share first. This can genuinely run off
+     the right edge of the screen on an extreme viewport shape -- accepted,
+     not solved by clipping or negotiating a smaller size. */
   flex: 0 0 auto;
-  width: clamp(20px, min(var(--card-w-budget), 11vh), 84px);
-  aspect-ratio: 3 / 4;
+  height: 16.6667vh;
+  aspect-ratio: 1 / 1.16;
+  min-width: 5ch;
   background: var(--panel-2);
   border: 1.5px solid var(--line);
   border-radius: var(--radius);
