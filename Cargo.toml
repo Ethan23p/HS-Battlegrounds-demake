@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/bg-sim", "crates/bg-cli"]
+members = ["crates/bg-sim", "crates/bg-cli", "crates/bg-gui"]
 
 [workspace.package]
 version = "0.1.0"
