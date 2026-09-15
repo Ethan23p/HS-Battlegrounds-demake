@@ -1,39 +1,39 @@
 # Front-end roadmap
 
-Not canon — see `README.md`. Current as of 2026-09-13, from
-[0007](../transcripts/0007-the-front-end-and-the-scratchpad.md).
+Not canon — see `README.md`. Current as of 2026-09-15.
 
 ## Where things stand
 
 - `bg-sim`'s Action Phase is adapted to DESIGN.md: Board/Party/Slot/Unit/Beat/Intent,
   concurrent interactions within a beat, no ordering advantage between sides
   (`docs/DESIGN.md` Ongoing has both decisions).
-- `Resolution` is `Serialize`/`Deserialize` and carries `initial_board`, so a
-  `Resolution` is a self-contained replay.
-- 0.1 is built and redesigned: `bg-cli` emits a `Resolution` as JSON/JS, `web/` plays
-  it back as "Beat Ledger" (masthead + two ranks + event dispatch, IBM Plex Sans/Mono,
-  full light/dark). Published as a Claude artifact so Ethan can open it on a phone with
-  no file-manager/build-step failure modes — republish the same artifact path on every
-  later iteration rather than standing up a second copy.
-- Both the docs-restart work and this audit are on open PR
+- `bg-sim` runs in the browser via `bg-wasm` (`wasm-bindgen`) — one copy of the rules,
+  no rebuild step between changing a party and fighting it. `bg-cli` stays for a
+  no-browser look at the same fixture.
+- `Resolution` carries `boards`, a fully-resolved Board snapshot per Beat. The front end
+  never reconstructs state from the event log — that's "tell, don't ask" (Ethan's name
+  for it): the engine hands over complete, ordered fact, nothing downstream re-derives a
+  bg-sim rule to interpret it. Holds for every feature built since.
+- 0.1 and 0.2 are both done and merged into one working fight viewer, "Beat Ledger":
+  resolve a fight, drag your party into order first, step/play/skip/reset through the
+  result, single arrow + stacked damage numbers + a snap-and-recoil clash per exchange.
+  Published as a Claude artifact so it's viewable on a phone with no build step —
+  <https://claude.ai/artifact/DJeHAUvz8WVM419w3be221>, republished in place on every
+  iteration rather than a new link each time.
+- The rendering-technology question (hand-rolled DOM/CSS vs. an immediate-mode GUI like
+  egui) was raised and settled by actually building and running both, not by guessing —
+  see git history on `claude/frontend-0-1` and `claude/css-graphics-approach-tgzfh9`
+  (closed, unmerged, kept as the record) if the comparison needs revisiting.
+- The layout went through several real passes with Ethan directly — no header, one
+  full-viewport stage, playfield anchored center-left, info floating top-right,
+  proportional sizing with a letter-width floor rather than pixel constants, forced-
+  landscape on mobile instead of a rotate prompt. Also settled: git history has the
+  blow-by-blow (CSS specificity/cascade gotchas, the containment-vs-proportional
+  distinction, a couple of real regressions caught by screenshot rather than assumed
+  away) — worth a skim before touching `web/style.css` again, not reproduced here.
+- All of this is on open PR
   [#11](https://github.com/Ethan23p/HS-Battlegrounds-demake/pull/11), not yet merged to
   `main`.
-- 0.3's three open questions are resolved (below); 0.4's WASM step moved up into 0.2,
-  since 0.2 is the point where the page first needs to *ask* the engine something
-  instead of replaying a canned log.
-
-## Principle: tell, don't ask, across the engine/front-end boundary
-
-Ethan's framing, from the `boards`-snapshot fix below. The engine is the source of
-truth for state and the event log; it computes both fully (this is instant — a
-synchronous WASM call, nothing to stream) and hands the complete, ordered, immutable
-result over as data. The front end never asks the engine "what happens next" and the
-engine never pushes on its own clock — pacing is entirely the front end's presentation
-choice, decoupled from how or when the engine produced the facts. Concretely: nothing
-downstream of `resolve()` should ever need to reimplement a bg-sim rule to interpret
-its output. If a future feature makes a consumer infer state from events again, that's
-the signal to add another told fact, not another inference. Worth holding to as 0.2's
-drag-to-reorder and later features get built.
 
 ## Why web, and why this order
 
@@ -43,262 +43,36 @@ touch-capable drag input, fluid VFX, and fast data-driven iteration, all of whic
 DOM+CSS front end gets close to for free. So: web, hand-rolled, no game engine, and
 staged so the parts needing no design input come first.
 
-**Checked against a hand-rolled immediate-mode GUI (egui), not just assumed — closed.**
-A parallel session built a hand-painted `bg-gui` prototype (real `bg-sim` types, drawn
-via `egui::Painter` rect/circle/text calls, `claude/css-graphics-approach-tgzfh9`,
-evaluation only, not merged). Built and ran it rather than judging from the diff: cold
-build ~56s; with no display attached at all it hard-crashes before reaching the app;
-under `xvfb-run` it still crashed, missing a system library (`libxkbcommon-x11.so`) the
-container didn't have — needed a root `apt-get install` to get a single screenshot out of
-its headless hook. Confirms the original call — even the screenshot path that exists
-specifically for a no-display sandbox depends on host libraries outside Claude's control,
-and the hook itself is check-only: one static PNG per rebuild, no DOM-equivalent way to
-query state or drive interaction, against Playwright's click/drag/computed-style/
-screenshot loop that's driven every real bug fix this iteration. Local worktree removed;
-`claude/css-graphics-approach-tgzfh9` kept on origin, unmerged, as the record.
-
 ## Iterations
 
 ### 0.1 — See a fight happen — done
-`bg-cli` resolves a fixture fight and emits it as JSON (`bg` binary, `json` or `js`
-format). `web/` is a static HTML/CSS/JS page, no build step: open `index.html`,
-click Play, watch units strike, shields flash, units die and revive, parties
-compact. Skip-to-end and a speed selector exist. Verified with Playwright
-(screenshots + a DOM/console check) since this environment can't see a native
-window; outcome matches what `bg-cli` itself resolves. Redesigned once ("Beat
-Ledger") and published as an artifact after the first cut only worked as a plain
-`file://` path and broke when opened through a phone file manager.
+A fight resolves and plays back Beat by Beat: step forward/back, replay, skip to end,
+speed control. No design input needed here — pacing and card styling were engineering
+calls, not design ones.
 
-Settled as engineering, no design input needed: pacing is a dropdown (slow/normal/
-fast) rather than a fixed rate; units are colored cards with name/stats/keyword
-badges, no art yet — revisit only if the 0.5+ polish pass wants real sprites.
+### 0.2 — Touch a unit, and the engine moves into the browser — done
+`bg-sim` compiled to `wasm32`; drag-to-reorder a party before fighting it, verified on
+real mobile-device emulation (Pointer Events, one code path for mouse/touch/pen). Still
+one-shot: arrange, then fight, no persistent run — that's 0.3.
 
-**Playback intentionality pass — done.** Ethan: it only played through once until a
-refresh, and asked for replayability, a step-back-and-forth switcher, and damage
-numbers that read as part of the Beat rather than flashing and vanishing; also asked
-Claude to design the rest itself rather than just those two asks. Landed together
-since both hinge on the same idea: everything shown belongs to *the Beat currently
-revealed*, not a timer — see `Player.revealStep(index)` in `app.js`, the single place
-that renders a position, used by stepping, replaying, and skipping alike.
-
-Added, watching as a spectator rather than just implementing the two literal asks:
-attacker→target arrows (colored by side, dashed when absorbed, offset apart when a
-blow and its answer share the same two cards — the exact "trading blows" case that
-motivated the earlier narration fix); the struck stat itself flashes so the floating
-number and the card read as one event; a distinct pulsing "critical" state for a Unit
-sitting at 0 health awaiting burial (Departure 2's death-timing was otherwise
-invisible — the card just read 0 and looked normal until it vanished a Beat later); a
-shimmer on a rank when it closes ranks (left-anchoring had no visual of its own
-either). Two real bugs found and fixed while building it, not left standing: `Skip to
-end` jumping straight to the closing step without ever revealing the last Beat left
-the *previous* overlay on screen instead of the finishing blow (now computed from
-`steps`/`index` alone, path-independent); and an SVG with no explicit size clips to a
-300×150 default regardless of its CSS box, silently truncating the second arrow of
-almost every pair.
-
-**Debt — resolved.** `Resolution` now carries `boards`, a Board snapshot already fully
-resolved for every Beat (bury, shield-break, compaction, every Struck/StruckBack/
-Reborn applied). `app.js` no longer reconstructs state from the log at all — narration
-events are read only for animation timing (which slot to flash, what number to pop),
-never for what a Unit's resulting stats or keywords are. This is the "tell, don't ask"
-fix Ethan named for it: bg-sim tells the resulting state directly instead of leaving
-every consumer to infer it by re-deriving the engine's own rules from a stream of
-deltas.
-
-### 0.2 — Touch a unit, and the engine moves into the browser
-Two things land together, because the second is what the first actually needs.
-
-**`bg-sim` compiled to `wasm32` — done.** A thin `bg-wasm` crate (`showcase_board_json`,
-`resolve`) wraps the engine for `wasm-bindgen`; `app.js` now calls it directly instead
-of loading `bg-cli`'s generated output, verified to resolve the identical fixture fight
-(`PlayerWins`, 7 beats) as `bg-cli` itself. Motivated by 0.2 specifically, not deferred
-from 0.4: drag-to-reorder-then-refight needs the engine to answer a question the moment
-a player drags a unit, and reimplementing `Party::compact` a second time in JS on top of
-what `app.js` already reimplements for replay would only compound the drift risk. One
-copy of the rules now, no rebuild step between "drag" and "fight." `bg-cli` stays for a
-no-browser look at the same fixture. Mechanical notes for next time: `wasm-bindgen`'s
-CLI must match the crate version exactly (`cargo tree -p bg-wasm -i wasm-bindgen`,
-`cargo install wasm-bindgen-cli --version <that>`) and doesn't ship in the base
-toolchain; the seed argument is a JS `BigInt` (`1n`), not a `Number`, since it's a Rust
-`u64`; and `app.js` being a module now means `file://` no longer works at all for local
-testing — `python3 -m http.server` in `web/` (documented in `web/README.md`).
-
-**Drag-to-reorder a party before a fight — done. 0.2 is complete.** A `Prep` screen
-(new default state; the fight viewer is now entered via a "Fight" button, and a
-"Rearrange" button returns to it, keeping the current arrangement) with the player's
-row draggable via Pointer Events -- one code path for mouse, touch and pen -- verified
-against a real mobile-device emulation (iPhone 13), not just a desktop mouse. Still
-one-shot: arrange, then fight, no persistent run.
-
-The roadmap's open question about client-side packing logic turned out not to apply:
-a reorder only *permutes* the Units already there, it never opens or closes a gap, so
-there's nothing to compact and nothing of `Party::compact`'s rule to defer to bg-sim
-or reimplement -- `Prep.boardJson()` is a plain array splice, packed by construction.
-A fresh seed each fight (`Date.now()`), so re-fighting the same arrangement doesn't
-replay identically -- `Reset` on the fight itself still replays that one exactly, only
-"Fight" from Prep draws a new one.
-
-Three real, non-obvious CSS/JS bugs found and fixed along the way, not left standing:
-a grid item's implicit `min-width: auto` (its content's own min-content size) beat the
-`minmax()` floor meant to constrain it -- fixed at every level of the flex chain
-between the scrollable row and the page edge, not just the row itself; `[hidden]`
-loses to any later same-specificity `display` rule regardless of matching, since
-author styles always beat the UA stylesheet at equal specificity; and a media query
-placed earlier in the file than the base rules it was meant to override always lost,
-matching or not, since source order still decides equal-specificity ties. The mobile
-layout itself was redone rather than patched once this surfaced: eight cards with real
-content (name, stats, badges) can't be shrunk to fit a phone and stay legible, so the
-row now scrolls horizontally at a fixed, always-legible card size instead of
-compressing columns to fit -- the standard answer for more content than fits on
-touch, and it stopped an entire class of "make it 1px narrower" chase.
-
-**Landscape-first, proportional layout — done.** Ethan's own web-dev mental model, applied:
-anchor to the screen, reason in fractions of it ("a card is X% of screen height, N fit end
-to end"), not in pixels negotiated against a container. Three changes, all in `web/`:
-
-- `.unit`'s size is now `clamp(64px, 11vh, 108px)` tall with a fixed `aspect-ratio`, and
-  `flex: 0 0 auto` in `.row` -- nothing grows or shrinks it against a sibling or ancestor,
-  so the `min-width: auto` renegotiation that caused three bugs last iteration has nothing
-  left to negotiate. Verified: at 1000x560 a card resolves to exactly 48x64
-  (`11vh` of 560, floor-clamped), matching the formula, not a guess.
-- Portrait phones get an explicit "rotate to landscape" prompt (`.rotate-prompt`,
-  `@media (max-width: 760px) and (orientation: portrait)`) instead of a squeezed layout --
-  landscape is the one supported orientation now, matching real Battlegrounds. Verified a
-  real landscape-phone viewport (844x390) fits all 8 slots with no scroll.
-- `.row`'s old `overflow-x: auto` scroll-safety-net is gone. It's no longer needed (the
-  above makes a full row fit by construction) and it turned out actively harmful: the CSS
-  overflow spec forces `overflow-y` to `auto` the instant `overflow-x` isn't `visible`, on
-  the *same element*, even when `overflow-y: visible` is set explicitly -- there is no
-  combination of the two that scrolls one axis while leaving the other genuinely
-  unclipped. This silently clipped the reworked damage-label anchor below before the
-  `overflow-x` line was removed; caught by screenshot, not by reasoning about the CSS in
-  the abstract.
-
-**Rendering pass, Ethan's read after trying the egui prototype — done.** Three asks,
-landed together in `web/app.js` + `style.css`:
-
-- **One arrow per engagement, not one per blow.** A Struck and its StruckBack in the same
-  Beat used to draw two arrows (or three, spread apart) for what is one clash seen from
-  both sides. `drawBeatOverlay` now groups cues by the unordered {attacker, target} pair
-  and draws a single, unidirectional arrow per pair -- the initiating blow's own
-  direction -- while damage numbers stay one-per-blow (a trade still shows both figures).
-- **Damage numbers as their own system, anchored on the card.** `.dmg-label` is now a
-  child of the `.unit` it describes (`placeDamageLabel` appends directly to the struck
-  card), positioned in that card's own box via `--stack` rather than computed from
-  battlefield-relative `getBoundingClientRect` math against a shared overlay layer. Simpler
-  and more robust to any future reflow -- the label moves with the card by construction, no
-  recompute needed.
-- **The BG attack motion -- cards snap together and rubber-band back.** Replaced the old
-  scale/translateY pulse with `.unit.attacking`'s `clash` keyframe and `.unit.recoiling`'s
-  smaller `recoil` keyframe, both driven by a real `--clash-x`/`--clash-y` vector (the same
-  attacker->target direction `drawArrow` uses) set from JS, so a card visibly moves toward
-  the card it's actually striking rather than a generic up/down nudge.
-
-Verified end-to-end with Playwright, not just visually: drag-to-reorder still swaps
-roster order; fight/skip-to-end/reset/play/rearrange all still transition correctly; a
-Beat with a mutual trade renders exactly one arrow per engaged pair with each blow's own
-stacked damage figure.
-
-**Two-column layout, sidebar as one scrolling stack — done.** Ethan's explicit shape:
-play field on the left, "information stuffs" on the right -- controls, the event log
-(minimizable), and wherever a later addition lands -- as one vertically-scrolling column
-rather than a slot per thing. `index.html`'s `<main>` still grids battlefield/sidebar
-(unchanged), but the masthead no longer carries the transport controls; `.sidebar` is a
-new `<aside>` holding `.controls` (now styled as its own card, matching `.dispatch`) and
-the event log in order, `position: sticky` with a viewport-relative `max-height` so it
-scrolls in place rather than growing the page past the fold. The log's own heading is now
-a real `<button id="log-toggle">` toggling `aria-expanded`; collapsing it hides `.lines`
-via a CSS sibling selector, no JS-held display state. Verified: collapse/expand round-trips
-cleanly (`display: none` -> `block`), and drag/fight/skip/play/reset/rearrange all still
-work after the DOM move (control element ids didn't change, only their container).
-
-**Single stage, no page header, forced-landscape mobile — done.** Ethan's read after
-actually viewing it on his phone and in a narrow preview: no header (a game doesn't need
-one; "Beat Ledger" was meant to name the log, not the page), a real vertical-scroll bug,
-and the playfield visibly squashing in a narrow preview pane -- his diagnosis, container
-min-width fighting, was right, but not for the reason it first looked like:
-
-- `web/index.html`'s `<main>` grid, `.wrap`, and `<header class="masthead">` are gone.
-  One `.stage` (`100vw x 100dvh`, `overflow: hidden` -- no page scroll is possible at
-  all now) holds two independently-positioned children: `.playfield` anchored center-left
-  and sized by its own content (nothing above it imposes a narrower width to negotiate
-  against), and `.info` -- the controls, readout, outcome banner, and the log (now titled
-  "Beat Ledger," its actual name) -- floating top-right as its own card stack, unrelated
-  in the DOM to the playfield at all. Four levels to `.unit` now (`stage > playfield >
-  rank > row`), down from six.
-- The squash turned out to be **two** bugs, not one. First, a real regression: an edit
-  during this same pass accidentally dropped the page's global `* { box-sizing:
-  border-box }` rule, so every border and padding was quietly adding to widths instead of
-  being included in them -- every measurement looked ~6-30px wider than the CSS said,
-  which is what made the second bug look worse than it was. Second, the actual reported
-  issue: `.info`'s 33vw width and `.unit`'s card size were two independent guesses about
-  available space that had no way of knowing about each other, so they could still
-  collide once corrected. Fixed by computing one shared budget on `.stage`
-  (`--info-w`, `--card-w-budget`) that `.unit` derives its width from directly --
-  the real leftover space after `.info`'s own column, not a guess -- so the two can't
-  fight over width they were never actually dividing consistently. `.playfield` also
-  picked up `overflow: hidden` once it had a `max-width`: without it, a flex child that
-  still wanted to be wider rendered the box past its own computed width instead of being
-  capped by it, the same failure one container level higher than where it started.
-  Verified across nine viewport widths (1000px down to 390px): zero card-overflow,
-  zero playfield/info overlap, at every one.
-- Mobile: no more rotate-prompt. `.stage` is unconditionally rendered landscape on a
-  narrow+portrait viewport via the standard CSS fix for a phone browser that won't
-  reliably reflow on an actual physical rotation -- `rotate(90deg) translateY(-100%)`
-  with `transform-origin: top left`, sized `100vh x 100vw` so it exactly fills a portrait
-  viewport rotated. No blocking prompt, nothing to wait on; verified the transform
-  resolves correctly (`matrix(0, 1, -1, 0, 390, 0)` for a 390x844 viewport) and that
-  drag-to-reorder still works under it -- `getBoundingClientRect` and pointer
-  `clientX`/`clientY` are both already in post-transform screen space, so the existing
-  hit-testing needed no special-casing for the rotation at all.
-
-**Proportional sizing, not containment -- done.** Ethan's correction on the previous
-pass, with a marked-up screenshot: computing `.unit`'s width *from* `.info`'s reserved
-space (a shared `--card-w-budget` custom property) was still the parent/child
-containment pattern he'd asked to move away from, just expressed as a `calc()` instead of
-nested divs -- and the `overflow: hidden` that pass added to `.playfield` to make that
-budget hold was containment, doing exactly what he was flagging. His framing: for game
-UI, think of a container as a bounding box only, never as something whose size or padding
-other elements' layout depends on. Concretely landed:
-
-- `.unit` sizes off the viewport directly and independently -- `height: 16.6667vh`
-  (his 1/6 figure), `aspect-ratio: 1 / 1.16`, floored by `min-width: 5ch` (a letter-width
-  minimum, not an arbitrary px number) -- no `min()`, no shared budget, nothing derived
-  from `.info`'s width. Cards are visibly bigger as a direct result: the previous pass's
-  budget-capping had been shrinking them well below what the viewport actually allowed.
-- `.playfield` dropped `max-width` and `overflow: hidden` entirely -- it's a backdrop
-  that trails its content's real size, not a box content is fit into. Padding is `1ch`,
-  down from a fixed 44px top / 16-18px elsewhere; the extra top padding that pass added
-  for damage-label headroom is gone too, since nothing clips there anymore for a label to
-  need headroom against.
-- `.info` sizes itself proportionally (`33vw`, floored at `18ch`) on its own terms,
-  independent of `.playfield` -- no shared variable between them at all now.
-- Explicitly accepted, not fixed: nothing here clips or negotiates a smaller size to stay
-  on screen, so a sufficiently extreme viewport shape could still run a card off the
-  right edge or overlap `.info`. Ethan's own tradeoff -- "there's no guarantee the slots
-  won't go off the screen, but the width budget should check out" -- verified: at every
-  tested width down to a squashed 480x320 preview, cards fit without collision, without
-  any clipping mechanism holding that up.
-
-### 0.3 — A shop and a run
-Buy/sell/reroll, gold, multiple rounds. First version that's a game rather than a
-fight viewer. All three blockers from the previous draft are resolved:
+### 0.3 — A shop and a run — next
+Buy/sell/reroll, gold, multiple rounds. First version that's a game rather than a fight
+viewer. All three blockers from the original draft are already resolved:
 
 - **Opponent source:** procedurally generated, kept light — not a hand-authored
-  bestiary, not run history. Recorded in `docs/DESIGN.md` Ongoing ("The opponent pool
-  is procedural, kept light"). What "kept light" means for the actual generation
-  rule is still Claude's to design as engineering, informed by that quotation, not a
-  second design question.
-- **Economy:** a simple placeholder now — fixed gold-per-turn, flat reroll/buy/tier
-  costs, just enough to make the loop testable. The real numbers get tuned once the
-  loop exists and can be felt, not designed on paper first. This is a sequencing
-  choice, not a design ruling on what the numbers should be, so it isn't in
-  DESIGN.md.
-- **Persistence:** none yet. A run is one sitting; closing the tab ends it. Also a
-  sequencing choice, not a design fact about the eventual offline model.
+  bestiary, not run history (`docs/DESIGN.md` Ongoing). What "kept light" means for the
+  actual generation rule is still Claude's to design as engineering.
+- **Economy:** a simple placeholder to start — fixed gold-per-turn, flat reroll/buy/tier
+  costs, just enough to make the loop testable. Real numbers get tuned once the loop
+  exists and can be felt, not designed on paper first. Sequencing choice, not a design
+  ruling, so it isn't in DESIGN.md.
+- **Persistence:** none yet. A run is one sitting; closing the tab ends it. Also
+  sequencing, not a design fact about the eventual offline model.
+
+This is the resume point for "recenter on gameplay."
 
 ### 0.4 — Data-driven content, for real
-The WASM binding already exists (0.2), so this is narrower than it was: Units/
+The WASM binding already exists (0.2), so this is narrower than it once was: Units/
 abilities move from `bg-cli`'s hardcoded fixture to RON assets the page loads at
 runtime, so adding a Unit is a file edit, not a recompile.
 
@@ -306,4 +80,6 @@ runtime, so adding a Unit is a file edit, not a recompile.
 keywords — Departure 4 explicitly deferred this to "a dedicated discussion."
 
 ### 0.5+ — Polish, VFX, juice
-Deliberately last: juice on rules that might still change is wasted work.
+Deliberately last: juice on rules that might still change is wasted work. The rendering
+pass just finished (arrows, damage numbers, clash motion, proportional layout) covers the
+fight viewer; a shop screen (0.3) will want its own pass once it exists to look at.
