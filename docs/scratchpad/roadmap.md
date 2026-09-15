@@ -43,6 +43,20 @@ touch-capable drag input, fluid VFX, and fast data-driven iteration, all of whic
 DOM+CSS front end gets close to for free. So: web, hand-rolled, no game engine, and
 staged so the parts needing no design input come first.
 
+**Checked against a hand-rolled immediate-mode GUI (egui), not just assumed — closed.**
+A parallel session built a hand-painted `bg-gui` prototype (real `bg-sim` types, drawn
+via `egui::Painter` rect/circle/text calls, `claude/css-graphics-approach-tgzfh9`,
+evaluation only, not merged). Built and ran it rather than judging from the diff: cold
+build ~56s; with no display attached at all it hard-crashes before reaching the app;
+under `xvfb-run` it still crashed, missing a system library (`libxkbcommon-x11.so`) the
+container didn't have — needed a root `apt-get install` to get a single screenshot out of
+its headless hook. Confirms the original call — even the screenshot path that exists
+specifically for a no-display sandbox depends on host libraries outside Claude's control,
+and the hook itself is check-only: one static PNG per rebuild, no DOM-equivalent way to
+query state or drive interaction, against Playwright's click/drag/computed-style/
+screenshot loop that's driven every real bug fix this iteration. Local worktree removed;
+`claude/css-graphics-approach-tgzfh9` kept on origin, unmerged, as the record.
+
 ## Iterations
 
 ### 0.1 — See a fight happen — done
