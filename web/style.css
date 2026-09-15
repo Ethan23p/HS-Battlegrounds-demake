@@ -224,16 +224,33 @@ main {
   align-items: start;
 }
 
-@media (max-width: 760px) {
-  main { grid-template-columns: 1fr; }
+/* Landscape is the supported orientation -- eight real cards per row never
+   fit a portrait phone at a legible size, and shrinking them to try was the
+   wrong fight (see .unit below). A narrow *and* upright viewport gets asked
+   to rotate instead of receiving a squeezed layout. */
+.rotate-prompt { display: none; }
+
+@media (max-width: 760px) and (orientation: portrait) {
+  .wrap { display: none; }
+  .rotate-prompt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    text-align: center;
+    padding: 32px;
+    font-size: 15px;
+    color: var(--ink-dim);
+  }
 }
 
 /* ------------------------------------------------------------- battlefield */
 
 .battlefield {
   position: relative;
-  min-width: 0; /* a grid item of main -- same auto-min-width issue up the
-                   whole chain to .row's overflow-x */
+  min-width: 0; /* a grid item of main -- its content's own min-content size
+                   would otherwise beat main's minmax() floor and keep the
+                   dispatch column too narrow on a mid-width viewport */
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -243,12 +260,12 @@ main {
   gap: 0;
 }
 
-/* Arrows and damage callouts for the Beat currently on screen -- both sit in
-   one shared coordinate space (the battlefield's own box) so an arrow and
-   the label at its tip always land in the same place. Cleared and redrawn
-   whenever a different Beat is revealed; between reveals they simply stay,
-   which is the fix for numbers that used to flash and vanish before they
-   could be read. */
+/* Arrows for the Beat currently on screen, in the battlefield's own
+   coordinate space (damage callouts moved to being children of the cards
+   they describe -- see .dmg-label below -- so this layer is arrows only
+   now). Cleared and redrawn whenever a different Beat is revealed; between
+   reveals it simply stays, which is the fix for a Beat's result that used
+   to flash and vanish before it could be read. */
 .overlay {
   position: absolute;
   inset: 0;
@@ -266,9 +283,14 @@ main {
   opacity: 0.45;
 }
 
+/* Its own system, anchored on the card it belongs to rather than computed
+   from battlefield-relative pixel math: a child of the .unit it describes,
+   positioned in that card's own coordinate space. Stacks upward when a card
+   takes more than one hit in a Beat via --stack, set from JS. */
 .dmg-label {
   position: absolute;
-  transform: translate(-50%, -100%);
+  top: calc(-6px - var(--stack, 0) * 18px);
+  right: -4px;
   font-family: var(--font-data);
   font-size: 12px;
   font-weight: 700;
@@ -287,17 +309,17 @@ main {
 }
 
 @keyframes label-in {
-  0% { opacity: 0; transform: translate(-50%, -80%) scale(0.7); }
-  100% { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+  0% { opacity: 0; transform: scale(0.7); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 .rank {
   display: flex;
   flex-direction: column;
-  min-width: 0; /* same reason as .row and .unit: a flex item's default
-                   min-width is its content's natural size, which would
-                   otherwise defeat .row's overflow-x scrolling by growing
-                   every ancestor up the chain to fit it instead */
+  min-width: 0; /* same reason as .battlefield above: a flex item's default
+                   min-width is its content's own natural size, which would
+                   otherwise force this column wider than main's own floor
+                   lets it be */
   gap: 6px;
 }
 
@@ -322,20 +344,27 @@ main {
 #player-rank .rank-label { color: var(--indigo); }
 #player-rank .dot { background: var(--indigo); }
 
-/* A row of 8 real cards (name, stats, badges) can't be squeezed to fit any
-   viewport and stay legible -- shrinking columns to fit is fighting the
-   wrong battle. A flex row that scrolls instead is the standard answer for
-   more content than fits on touch: cards grow to fill a wide screen, but
-   never shrink below a legible size (flex-shrink: 0 on the card itself,
-   below) -- the row scrolls past that point rather than compressing. */
+/* A row of cards sized off the viewport (below), not negotiated against its
+   container: `flex: 0 0 auto` means nothing here grows or shrinks to fit
+   the row, so the row can never need to squeeze a card to fit a width --
+   the min-width/auto fight that caused three separate bugs in the old
+   shrink-or-scroll design doesn't have anything left to negotiate. `overflow
+   -x` stays only as a safety net (e.g. a future >8-wide party); landscape
+   sizing means it shouldn't normally engage. */
+/* No overflow-x here on purpose. Viewport-driven card sizing (.unit, below)
+   makes a full row of cards fit landscape by construction, so the old
+   scroll-if-it-doesn't-fit safety net has nothing left to catch -- and it
+   can't coexist with a card's damage label escaping upward anyway: the CSS
+   overflow spec always forces overflow-y to `auto` the moment overflow-x
+   isn't `visible`, on the same element, even if overflow-y is set to
+   `visible` explicitly -- there is no combination of the two properties
+   that scrolls one axis while leaving the other genuinely unclipped. If a
+   future wider party ever needs its own scroll, it needs a container that
+   doesn't also host anything positioned outside its own box. */
 .row {
   display: flex;
-  min-width: 0; /* .row is itself a flex child (of .rank); without this its
-                   own content can push it wider than its container instead
-                   of scrolling within it */
+  min-width: 0;
   gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
 }
 
 .spine {
@@ -361,12 +390,13 @@ main {
 
 .unit {
   position: relative;
-  flex: 1 1 60px; /* grows to fill a wide row; 60px is the floor it refuses
-                      to shrink below (flex-shrink: 0) -- the row scrolls
-                      past that point instead of squeezing cards illegible */
-  flex-shrink: 0;
-  max-width: 100px; /* caps how wide a card grows on a very wide screen */
-  overflow: hidden; /* clip boundary for .name's ellipsis */
+  /* Height is a fraction of the viewport, not of the row it sits in --
+     "anchor to the screen, reason in proportions" -- so its size is decided
+     once, top-down, and never renegotiated against a sibling or ancestor.
+     `flex: 0 0 auto` means it doesn't grow or shrink to fill or fit
+     anything; width simply follows from aspect-ratio. */
+  flex: 0 0 auto;
+  height: clamp(64px, 11vh, 108px);
   aspect-ratio: 3 / 4;
   background: var(--panel-2);
   border: 1.5px solid var(--line);
@@ -445,9 +475,30 @@ main {
 
 .badge.DivineShield { background: var(--gold); color: var(--gold-ink); }
 
-.unit.attacking { transform: scale(1.14); z-index: 2; }
-#player-row .unit.attacking { transform: translateY(-8px) scale(1.1); }
-#opposing-row .unit.attacking { transform: translateY(8px) scale(1.1); }
+/* The actual BG attack motion is simple: the striking card snaps toward its
+   target and rubber-bands back, no more. --clash-x/--clash-y are the
+   attacker->target direction set from JS (drawArrow's own vector, so the
+   card visibly moves toward the card it's actually hitting, not just "up"
+   or "down"); the struck card gets a smaller recoil in the same direction,
+   timed to land as the clash arrives. */
+.unit.attacking {
+  z-index: 2;
+  animation: clash 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.unit.recoiling { animation: recoil 300ms ease-out; }
+
+@keyframes clash {
+  0% { transform: translate(0, 0) scale(1); }
+  45% { transform: translate(var(--clash-x, 0px), var(--clash-y, 0px)) scale(1.08); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes recoil {
+  0%, 35% { transform: translate(0, 0); }
+  55% { transform: translate(calc(var(--clash-x, 0px) * 0.35), calc(var(--clash-y, 0px) * 0.35)); }
+  100% { transform: translate(0, 0); }
+}
 
 .unit.shield-flash { background: var(--gold); border-color: var(--gold); }
 .unit.revive-flash { background: var(--green); border-color: var(--green); }

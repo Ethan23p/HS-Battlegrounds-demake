@@ -152,6 +152,53 @@ row now scrolls horizontally at a fixed, always-legible card size instead of
 compressing columns to fit -- the standard answer for more content than fits on
 touch, and it stopped an entire class of "make it 1px narrower" chase.
 
+**Landscape-first, proportional layout — done.** Ethan's own web-dev mental model, applied:
+anchor to the screen, reason in fractions of it ("a card is X% of screen height, N fit end
+to end"), not in pixels negotiated against a container. Three changes, all in `web/`:
+
+- `.unit`'s size is now `clamp(64px, 11vh, 108px)` tall with a fixed `aspect-ratio`, and
+  `flex: 0 0 auto` in `.row` -- nothing grows or shrinks it against a sibling or ancestor,
+  so the `min-width: auto` renegotiation that caused three bugs last iteration has nothing
+  left to negotiate. Verified: at 1000x560 a card resolves to exactly 48x64
+  (`11vh` of 560, floor-clamped), matching the formula, not a guess.
+- Portrait phones get an explicit "rotate to landscape" prompt (`.rotate-prompt`,
+  `@media (max-width: 760px) and (orientation: portrait)`) instead of a squeezed layout --
+  landscape is the one supported orientation now, matching real Battlegrounds. Verified a
+  real landscape-phone viewport (844x390) fits all 8 slots with no scroll.
+- `.row`'s old `overflow-x: auto` scroll-safety-net is gone. It's no longer needed (the
+  above makes a full row fit by construction) and it turned out actively harmful: the CSS
+  overflow spec forces `overflow-y` to `auto` the instant `overflow-x` isn't `visible`, on
+  the *same element*, even when `overflow-y: visible` is set explicitly -- there is no
+  combination of the two that scrolls one axis while leaving the other genuinely
+  unclipped. This silently clipped the reworked damage-label anchor below before the
+  `overflow-x` line was removed; caught by screenshot, not by reasoning about the CSS in
+  the abstract.
+
+**Rendering pass, Ethan's read after trying the egui prototype — done.** Three asks,
+landed together in `web/app.js` + `style.css`:
+
+- **One arrow per engagement, not one per blow.** A Struck and its StruckBack in the same
+  Beat used to draw two arrows (or three, spread apart) for what is one clash seen from
+  both sides. `drawBeatOverlay` now groups cues by the unordered {attacker, target} pair
+  and draws a single, unidirectional arrow per pair -- the initiating blow's own
+  direction -- while damage numbers stay one-per-blow (a trade still shows both figures).
+- **Damage numbers as their own system, anchored on the card.** `.dmg-label` is now a
+  child of the `.unit` it describes (`placeDamageLabel` appends directly to the struck
+  card), positioned in that card's own box via `--stack` rather than computed from
+  battlefield-relative `getBoundingClientRect` math against a shared overlay layer. Simpler
+  and more robust to any future reflow -- the label moves with the card by construction, no
+  recompute needed.
+- **The BG attack motion -- cards snap together and rubber-band back.** Replaced the old
+  scale/translateY pulse with `.unit.attacking`'s `clash` keyframe and `.unit.recoiling`'s
+  smaller `recoil` keyframe, both driven by a real `--clash-x`/`--clash-y` vector (the same
+  attacker->target direction `drawArrow` uses) set from JS, so a card visibly moves toward
+  the card it's actually striking rather than a generic up/down nudge.
+
+Verified end-to-end with Playwright, not just visually: drag-to-reorder still swaps
+roster order; fight/skip-to-end/reset/play/rearrange all still transition correctly; a
+Beat with a mutual trade renders exactly one arrow per engaged pair with each blow's own
+stacked damage figure.
+
 ### 0.3 — A shop and a run
 Buy/sell/reroll, gold, multiple rounds. First version that's a game rather than a
 fight viewer. All three blockers from the previous draft are resolved:

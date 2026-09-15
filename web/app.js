@@ -125,7 +125,6 @@ const battlefieldEl = document.getElementById("battlefield");
 const rowEl = { Player: document.getElementById("player-row"), Opposing: document.getElementById("opposing-row") };
 const arrowSvgEl = document.querySelector(".overlay.arrows");
 const arrowLinesEl = document.getElementById("arrow-lines");
-const dmgLayerEl = document.getElementById("dmg-layer");
 const logEl = document.getElementById("log");
 const outcomeEl = document.getElementById("outcome");
 const beatValueEl = document.getElementById("beat-value");
@@ -251,7 +250,9 @@ function clearOverlay() {
   arrowSvgEl.setAttribute("viewBox", `0 0 ${b.width} ${b.height}`);
 
   arrowLinesEl.innerHTML = "";
-  dmgLayerEl.innerHTML = "";
+  // Damage labels live on the card they describe (placeDamageLabel), not in
+  // a shared layer, so clearing them means finding them there.
+  for (const el of document.querySelectorAll(".unit .dmg-label")) el.remove();
 }
 
 function centerOf(side, slot) {
@@ -260,11 +261,7 @@ function centerOf(side, slot) {
   return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2 };
 }
 
-// `offset` is a fixed screen-space {x, y} nudge, the same for both arrows of
-// a mutual pair -- NOT derived from this call's own attacker->target
-// direction, which flips sign for the answering arrow and would cancel the
-// separation out (both "offset" arrows ending up shifted the same way).
-function drawArrow(attackerSide, attackerSlot, targetSide, targetSlot, absorbed, offset) {
+function drawArrow(attackerSide, attackerSlot, targetSide, targetSlot, absorbed) {
   const a = centerOf(attackerSide, attackerSlot);
   const b = centerOf(targetSide, targetSlot);
   const dx = b.x - a.x;
@@ -273,8 +270,8 @@ function drawArrow(attackerSide, attackerSlot, targetSide, targetSlot, absorbed,
   const pad = 26; // clear of the cards themselves, so the arrowhead lands at an edge, not buried in stats
   const ux = dx / len;
   const uy = dy / len;
-  const start = { x: a.x + ux * pad + offset.x, y: a.y + uy * pad + offset.y };
-  const end = { x: b.x - ux * pad + offset.x, y: b.y - uy * pad + offset.y };
+  const start = { x: a.x + ux * pad, y: a.y + uy * pad };
+  const end = { x: b.x - ux * pad, y: b.y - uy * pad };
 
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("d", `M${start.x},${start.y} L${end.x},${end.y}`);
@@ -284,23 +281,27 @@ function drawArrow(attackerSide, attackerSlot, targetSide, targetSlot, absorbed,
   arrowLinesEl.appendChild(path);
 }
 
+// Its own system, anchored on the card it describes (see .dmg-label in
+// style.css) rather than placed by battlefield-relative math -- a child of
+// the struck card, stacked upward via --stack when more than one hits it in
+// the same Beat.
 function placeDamageLabel(side, slot, text, absorbed, stackIndex) {
-  const c = centerOf(side, slot);
   const el = document.createElement("div");
   el.className = "dmg-label" + (absorbed ? " absorbed" : "");
   el.textContent = text;
-  el.style.left = `${c.x}px`;
-  // Clear of the arrow's own landing point (pad 26 in drawArrow) -- an
-  // opaque label sitting exactly where the arrowhead lands hides the
-  // arrowhead entirely, which is what this measurement is for.
-  el.style.top = `${c.y - 38 - stackIndex * 18}px`;
-  dmgLayerEl.appendChild(el);
+  el.style.setProperty("--stack", String(stackIndex));
+  slotEl(side, slot).appendChild(el);
 }
 
+// A Beat's exchange between two cards is one relationship, not one arrow per
+// blow -- a Struck and its StruckBack are the same clash seen from both
+// sides, so they collapse to a single, unidirectional arrow (the initiating
+// blow's own direction) per pair engaged this Beat. Damage numbers stay
+// per-blow: each hit still needs its own figure, just not its own arrow.
 function drawBeatOverlay(step) {
   const stacked = new Map(); // "side:slot" -> how many labels already placed there this Beat
-  const pairSeen = new Map(); // unordered {attacker,target} pair -> how many arrows drawn between them
-  const pairPerp = new Map(); // that same pair -> its one fixed perpendicular unit vector
+  const pairs = new Map(); // unordered {attacker,target} pair -> that pair's one arrow
+
   for (const cue of step.cues) {
     if (cue.kind !== "hit" && cue.kind !== "absorb") continue;
     const absorbed = cue.kind === "absorb";
@@ -308,32 +309,49 @@ function drawBeatOverlay(step) {
     const aKey = `${cue.attackerSide}:${cue.attackerSlot}`;
     const bKey = `${cue.targetSide}:${cue.targetSlot}`;
     const pairKey = [aKey, bKey].sort().join("|");
-    if (!pairPerp.has(pairKey)) {
-      const [k1, k2] = pairKey.split("|");
-      const [s1, slot1] = k1.split(":");
-      const [s2, slot2] = k2.split(":");
-      const c1 = centerOf(s1, Number(slot1));
-      const c2 = centerOf(s2, Number(slot2));
-      const dx = c2.x - c1.x;
-      const dy = c2.y - c1.y;
-      const len = Math.hypot(dx, dy) || 1;
-      pairPerp.set(pairKey, { x: -dy / len, y: dx / len });
+    // The initiating blow (not the retaliation) decides the pair's arrow
+    // direction; keep the first cue seen until a non-answering one arrives
+    // to correct it, in case the log ever orders them the other way.
+    const existing = pairs.get(pairKey);
+    if (!existing || (existing.answering && !cue.answering)) {
+      pairs.set(pairKey, {
+        attackerSide: cue.attackerSide,
+        attackerSlot: cue.attackerSlot,
+        targetSide: cue.targetSide,
+        targetSlot: cue.targetSlot,
+        absorbed,
+        answering: cue.answering,
+      });
     }
-    const perp = pairPerp.get(pairKey);
-
-    const pairIndex = pairSeen.get(pairKey) ?? 0;
-    pairSeen.set(pairKey, pairIndex + 1);
-    const spread = pairIndex === 0 ? -5 : pairIndex === 1 ? 5 : 0;
-    drawArrow(cue.attackerSide, cue.attackerSlot, cue.targetSide, cue.targetSlot, absorbed, {
-      x: perp.x * spread,
-      y: perp.y * spread,
-    });
 
     const key = `${cue.targetSide}:${cue.targetSlot}`;
     const stackIndex = stacked.get(key) ?? 0;
     stacked.set(key, stackIndex + 1);
     placeDamageLabel(cue.targetSide, cue.targetSlot, absorbed ? "blocked" : `-${cue.damage}`, absorbed, stackIndex);
   }
+
+  for (const pair of pairs.values()) {
+    drawArrow(pair.attackerSide, pair.attackerSlot, pair.targetSide, pair.targetSlot, pair.absorbed);
+  }
+}
+
+// The actual BG attack motion: a card snaps toward the one it's striking
+// and rubber-bands back (.unit.attacking's `clash` keyframe in style.css);
+// the struck card gets a smaller recoil in the same direction, timed to
+// land as the clash arrives (`.unit.recoiling`'s `recoil` keyframe). Both
+// read the same --clash-x/--clash-y, the real attacker->target vector (the
+// same one drawArrow uses), so a card visibly moves toward the card it's
+// actually hitting rather than a generic "up" or "down".
+function setClashVector(side, slot, attackerSide, attackerSlot, targetSide, targetSlot) {
+  const a = centerOf(attackerSide, attackerSlot);
+  const b = centerOf(targetSide, targetSlot);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const reach = 16; // px a card snaps toward its target
+  const el = slotEl(side, slot);
+  el.style.setProperty("--clash-x", `${(dx / len) * reach}px`);
+  el.style.setProperty("--clash-y", `${(dy / len) * reach}px`);
 }
 
 // Transient flourish only -- attacking/shield/death/revive pulses that play
@@ -342,7 +360,10 @@ function drawBeatOverlay(step) {
 function animateCues(cues, speed) {
   for (const cue of cues) {
     if (cue.kind === "hit" || cue.kind === "absorb") {
+      setClashVector(cue.attackerSide, cue.attackerSlot, cue.attackerSide, cue.attackerSlot, cue.targetSide, cue.targetSlot);
+      setClashVector(cue.targetSide, cue.targetSlot, cue.attackerSide, cue.attackerSlot, cue.targetSide, cue.targetSlot);
       pulse(cue.attackerSide, cue.attackerSlot, "attacking", speed);
+      pulse(cue.targetSide, cue.targetSlot, "recoiling", speed);
       if (cue.kind === "absorb") pulse(cue.targetSide, cue.targetSlot, "shield-flash", speed);
     } else if (cue.kind === "died") {
       pulse(cue.side, cue.slot, "dying", speed);
