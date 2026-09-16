@@ -122,13 +122,19 @@ pub fn end_turn(run_json_in: &str) -> Result<String, JsError> {
         .map_err(|e| JsError::new(&format!("a Board always serializes: {e}")))
 }
 
-/// Record a fight's `Resolution` against the run's best-of-3 score.
+/// Record a fight's `Resolution` against the run's best-of-3 score, and sync
+/// the board with what the fight actually left standing -- damage and
+/// fight-only state don't carry into the next round, but death does.
 #[wasm_bindgen]
 pub fn apply_fight_result(run_json_in: &str, resolution_json: &str) -> Result<String, JsError> {
     let mut run = parse_run(run_json_in)?;
     let resolution: Resolution = serde_json::from_str(resolution_json)
         .map_err(|e| JsError::new(&format!("bad Resolution: {e}")))?;
-    run.apply_fight_result(resolution.outcome);
+    run.apply_fight_result(
+        &shop_roster(),
+        resolution.outcome,
+        &resolution.final_board.player,
+    );
     run_json(&run)
 }
 

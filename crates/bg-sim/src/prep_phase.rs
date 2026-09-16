@@ -344,12 +344,28 @@ impl RunState {
     /// Stalemate scores nobody -- rare enough (a Draw needs a mutual kill; a
     /// Stalemate needs `action_phase::MAX_BEATS`) that awarding either side a
     /// win for it would be a surprising rule with no rationale behind it.
-    pub fn apply_fight_result(&mut self, outcome: Outcome) {
+    ///
+    /// `survivors` is the player's side of `Resolution::final_board` -- the
+    /// board *does not* carry a fight's damage or fight-only state (Divine
+    /// Shield spent, Poisonous marks, Intents) into the next round, the way
+    /// Battlegrounds itself doesn't; only death is permanent. Rebuilding
+    /// each survivor fresh from its Definition is exactly that reset -- the
+    /// same one a newly bought Unit already gets, since nothing in this
+    /// engine yet grants a Unit a permanent change beyond its Definition.
+    pub fn apply_fight_result(&mut self, roster: &[UnitDef], outcome: Outcome, survivors: &Party) {
         match outcome {
             Outcome::PlayerWins => self.wins += 1,
             Outcome::OpposingWins => self.losses += 1,
             Outcome::Draw | Outcome::Stalemate => {}
         }
+
+        let mut board = Party::new();
+        for (i, unit) in survivors.iter() {
+            if let Some(def) = def_by_id(roster, &unit.def) {
+                board.put(i, Unit::new(def));
+            }
+        }
+        self.board = board;
     }
 
     /// How the run stands, once it's decided.
@@ -529,28 +545,67 @@ mod tests {
 
     #[test]
     fn best_of_three_ends_the_run() {
-        let mut run = RunState::new(Seed(7), &small_roster());
+        let roster = small_roster();
+        let mut run = RunState::new(Seed(7), &roster);
         assert_eq!(run.run_outcome(), None);
-        run.apply_fight_result(Outcome::PlayerWins);
+        run.apply_fight_result(&roster, Outcome::PlayerWins, &Party::new());
         assert_eq!(run.run_outcome(), None);
-        run.apply_fight_result(Outcome::PlayerWins);
+        run.apply_fight_result(&roster, Outcome::PlayerWins, &Party::new());
         assert_eq!(run.run_outcome(), Some(RunOutcome::PlayerWinsRun));
     }
 
     #[test]
     fn two_losses_ends_the_run_the_other_way() {
-        let mut run = RunState::new(Seed(8), &small_roster());
-        run.apply_fight_result(Outcome::OpposingWins);
-        run.apply_fight_result(Outcome::OpposingWins);
+        let roster = small_roster();
+        let mut run = RunState::new(Seed(8), &roster);
+        run.apply_fight_result(&roster, Outcome::OpposingWins, &Party::new());
+        run.apply_fight_result(&roster, Outcome::OpposingWins, &Party::new());
         assert_eq!(run.run_outcome(), Some(RunOutcome::PlayerLosesRun));
     }
 
     #[test]
     fn a_draw_or_stalemate_scores_neither_side() {
-        let mut run = RunState::new(Seed(9), &small_roster());
-        run.apply_fight_result(Outcome::Draw);
-        run.apply_fight_result(Outcome::Stalemate);
+        let roster = small_roster();
+        let mut run = RunState::new(Seed(9), &roster);
+        run.apply_fight_result(&roster, Outcome::Draw, &Party::new());
+        run.apply_fight_result(&roster, Outcome::Stalemate, &Party::new());
         assert_eq!((run.wins, run.losses), (0, 0));
+    }
+
+    #[test]
+    fn a_survivor_returns_at_full_health_a_casualty_does_not_return_at_all() {
+        let roster = small_roster();
+        let mut run = RunState::new(Seed(11), &roster);
+        run.gold = 100;
+        run.shop = vec![
+            ShopSlot {
+                def: DefId::new("a"),
+                frozen: false,
+            },
+            ShopSlot {
+                def: DefId::new("b"),
+                frozen: false,
+            },
+        ];
+        run.buy(&roster, 0).unwrap(); // "a" into slot 0
+        run.buy(&roster, 0).unwrap(); // "b" into slot 1 ("a"'s offer is gone, "b" is now offer 0)
+
+        // Simulate a fight where "a" survived damaged and "b" died: only "a"
+        // appears in the survivors Party, standing in the slot it fought in.
+        let mut damaged_a = Unit::new(def_by_id(&roster, &DefId::new("a")).unwrap());
+        damaged_a.health = 0; // took lethal damage but the engine still reports it as a survivor here
+        let mut survivors = Party::new();
+        survivors.put(0, damaged_a);
+
+        run.apply_fight_result(&roster, Outcome::PlayerWins, &survivors);
+
+        assert_eq!(run.board.len(), 1, "the casualty (b) does not return");
+        let revived = run.board.get(0).unwrap();
+        assert_eq!(revived.def, DefId::new("a"));
+        assert_eq!(
+            revived.health, revived.max_health,
+            "damage does not carry into the next round"
+        );
     }
 
     #[test]

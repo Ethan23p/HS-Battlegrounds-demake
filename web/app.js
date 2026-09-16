@@ -123,6 +123,7 @@ function buildBeatSteps(log, boards) {
 
 const battlefieldEl = document.getElementById("battlefield");
 const rowEl = { Player: document.getElementById("player-row"), Opposing: document.getElementById("opposing-row") };
+const opposingRankLabelEl = document.getElementById("opposing-rank-label");
 const arrowSvgEl = document.querySelector(".overlay.arrows");
 const arrowLinesEl = document.getElementById("arrow-lines");
 const logEl = document.getElementById("log");
@@ -130,10 +131,20 @@ const logToggleEl = document.getElementById("log-toggle");
 const outcomeEl = document.getElementById("outcome");
 const beatValueEl = document.getElementById("beat-value");
 const resultValueEl = document.getElementById("result-value");
-const prepControlsEl = document.getElementById("prep-controls");
+const goldValueEl = document.getElementById("gold-value");
+const tierValueEl = document.getElementById("tier-value");
+const recordValueEl = document.getElementById("record-value");
+const shopControlsEl = document.getElementById("shop-controls");
 const playbackControlsEl = document.getElementById("playback-controls");
+const runOverControlsEl = document.getElementById("run-over-controls");
+const runOverTextEl = document.getElementById("run-over-text");
+const shopMessageEl = document.getElementById("shop-message");
 const fightBtn = document.getElementById("fight");
-const rearrangeBtn = document.getElementById("rearrange");
+const rerollBtn = document.getElementById("reroll");
+const upgradeTavernBtn = document.getElementById("upgrade-tavern");
+const upgradeCostEl = document.getElementById("upgrade-cost");
+const continueBtn = document.getElementById("continue");
+const newRunBtn = document.getElementById("new-run");
 const prevBtn = document.getElementById("prev");
 const nextBtn = document.getElementById("next");
 const playBtn = document.getElementById("play");
@@ -163,14 +174,25 @@ function slotEl(side, slot) {
   return rowEl[side].children[slot];
 }
 
-function renderUnit(side, slot, unit) {
+// `opts.offer` (Prep, opposing row): a shop offer rather than a Unit -- adds
+// the freeze toggle and, when frozen, a highlight. `opts.sellable` (Prep,
+// player row): the board a run is built on -- adds the sell button. Neither
+// applies during a fight, so plain `renderUnit(side, slot, unit)` (opts
+// defaulting to {}) is what the fight viewer still calls.
+function renderUnit(side, slot, unit, opts = {}) {
   const el = slotEl(side, slot);
   const content = el.querySelector(".content");
   // A Unit at 0 health hasn't died yet -- bg-sim buries it at the top of the
   // *next* Beat (Departure 2). "critical" is what makes that rule visible
   // instead of the card just silently reading 0 until it vanishes.
   const critical = unit && unit.health <= 0;
-  el.className = "unit" + (unit ? "" : " empty") + (critical ? " critical" : "");
+  el.className =
+    "unit" +
+    (unit ? "" : " empty") +
+    (critical ? " critical" : "") +
+    (opts.offer ? " offer" : "") +
+    (opts.offer?.frozen ? " frozen" : "") +
+    (opts.offer?.affordable === false ? " unaffordable" : "");
   if (!unit) {
     content.innerHTML = "";
     return;
@@ -178,10 +200,16 @@ function renderUnit(side, slot, unit) {
   const badges = unit.keywords
     .map((k) => `<span class="badge ${k}" title="${k}">${KEYWORD_BADGE[k] ?? "?"}</span>`)
     .join("");
+  const corner = opts.offer
+    ? `<button class="freeze-btn" data-action="freeze" title="Freeze">❄</button>`
+    : opts.sellable
+      ? `<button class="sell-btn" data-action="sell" title="Sell">×</button>`
+      : "";
   content.innerHTML = `
     <div class="badges">${badges}</div>
     <div class="name">${unit.name}</div>
     <div class="stats"><span class="atk">${unit.attack}</span><span class="sep">/</span><span class="hp">${Math.max(unit.health, 0)}</span></div>
+    ${corner}
   `;
 }
 
@@ -510,39 +538,138 @@ class Player {
 }
 
 // ---------------------------------------------------------------------------
-// Prep: drag your party into order before the fight
-//
-// A reorder never introduces or removes a gap -- it only permutes the Units
-// already there -- so this never needs bg-sim's left-packing rule at all.
-// (The open question the roadmap once carried, "does the client
-// reimplement Party::compact or defer to bg-sim," turned out not to apply:
-// there's nothing to compact.) Dragged via Pointer Events, one code path for
-// mouse, touch and pen.
+// Shop: the Prep Phase. The opposing row is repurposed as the shop while
+// it's on screen (relabeled "Shop", swapped back to "Opposing party" the
+// moment a fight starts); the player row is the actual run -- it persists
+// round to round, the same cards carrying over, only buy/sell/reorder
+// touching it. Every action (buy, sell, reroll, freeze, upgrade) is told to
+// bg-wasm and the *entire next RunState* comes back -- this class never
+// computes gold, pool counts or a shop draw itself, only renders whatever
+// RunState it was just handed.
 // ---------------------------------------------------------------------------
 
-class Prep {
-  constructor(playerRoster, opposingSlots, onFight) {
-    this.roster = playerRoster; // ordered array of Units, no gaps
-    this.opposingSlots = opposingSlots;
+class Shop {
+  constructor(run, roster, onFight) {
+    this.run = run;
+    this.roster = roster; // the shop's UnitDef list, for offer name/stats/keywords by id
     this.onFight = onFight;
     this.drag = null;
+    this.msgTimer = null;
 
     for (let i = 0; i < SLOTS; i++) {
+      slotEl("Opposing", i).addEventListener("click", (e) => this.onOfferClick(e, i));
+      slotEl("Player", i).addEventListener("click", (e) => this.onBoardClick(e, i));
       slotEl("Player", i).addEventListener("pointerdown", (e) => this.onPointerDown(e, i));
     }
+    rerollBtn.addEventListener("click", () => this.reroll());
+    upgradeTavernBtn.addEventListener("click", () => this.upgradeTavern());
     fightBtn.addEventListener("click", () => this.fight());
   }
 
+  defById(id) {
+    return this.roster.find((d) => d.id === id);
+  }
+
+  // A shop offer is a UnitDef, not a Unit -- but it has exactly the fields
+  // renderUnit reads (name/attack/health/keywords), so no adapting needed
+  // beyond picking those fields out.
+  offerAsUnit(defId) {
+    const { name, attack, health, keywords } = this.defById(defId);
+    return { name, attack, health, keywords };
+  }
+
   render() {
+    goldValueEl.textContent = String(this.run.gold);
+    tierValueEl.textContent = String(this.run.tavern_tier);
+    recordValueEl.textContent = `${this.run.wins}-${this.run.losses}`;
+
+    const atMaxTier = this.run.tavern_tier >= 6;
+    const upgradeCost = this.run.tavern_tier * 5;
+    upgradeCostEl.textContent = atMaxTier ? "max" : `${upgradeCost}g`;
+    upgradeTavernBtn.disabled = atMaxTier || this.run.gold < upgradeCost;
+    rerollBtn.disabled = this.run.gold < 1;
+
     for (let i = 0; i < SLOTS; i++) {
-      renderUnit("Opposing", i, this.opposingSlots[i] ?? null);
-      renderUnit("Player", i, this.roster[i] ?? null);
-      slotEl("Player", i).classList.toggle("draggable", i < this.roster.length);
+      const offer = this.run.shop[i];
+      const offerUnit = offer ? this.offerAsUnit(offer.def) : null;
+      renderUnit("Opposing", i, offerUnit, {
+        offer: offer ? { frozen: offer.frozen, affordable: this.run.gold >= 3 } : null,
+      });
+
+      const boardUnit = this.run.board.slots[i];
+      renderUnit("Player", i, boardUnit, { sellable: !!boardUnit });
+      slotEl("Player", i).classList.toggle("draggable", !!boardUnit);
     }
   }
 
+  showMessage(text) {
+    shopMessageEl.textContent = text;
+    clearTimeout(this.msgTimer);
+    this.msgTimer = setTimeout(() => {
+      shopMessageEl.textContent = "";
+    }, 2500);
+  }
+
+  // Every shop action follows the same shape: send the current RunState (and
+  // whatever the action needs) to bg-wasm, replace it with whatever comes
+  // back, re-render. On a refusal (not enough gold, board full, ...) bg-wasm
+  // throws with the engine's own reason -- shown, not silently swallowed.
+  call(fn, ...args) {
+    try {
+      this.run = JSON.parse(fn(JSON.stringify(this.run), ...args));
+      this.render();
+    } catch (err) {
+      this.showMessage(err?.message ?? String(err));
+    }
+  }
+
+  buy(offer) {
+    this.call(shopBuy, offer);
+  }
+
+  sell(slot) {
+    this.call(shopSell, slot);
+  }
+
+  reroll() {
+    this.call(shopReroll);
+  }
+
+  toggleFreeze(offer) {
+    this.call(shopToggleFreeze, offer);
+  }
+
+  upgradeTavern() {
+    this.call(shopUpgradeTavern);
+  }
+
+  onOfferClick(e, i) {
+    if (e.target.closest(".freeze-btn")) {
+      this.toggleFreeze(i);
+      return;
+    }
+    if (this.run.shop[i]) this.buy(i);
+  }
+
+  onBoardClick(e, i) {
+    if (e.target.closest(".sell-btn")) this.sell(i);
+  }
+
+  // Drag-to-reorder the board -- the same Pointer Events pattern 0.2 built
+  // for this (one code path for mouse, touch and pen), now permuting
+  // `run.board.slots` (bg-wasm's `[Option<Unit>; 8]`) directly instead of a
+  // client-side roster array. Still never needs bg-sim's packing rule: a
+  // reorder only permutes Units already there, so `slots` stays exactly
+  // 8 long and left-packed throughout (splice removes one, then reinserts
+  // that same one -- length is never actually disturbed).
   onPointerDown(e, slot) {
-    if (slot >= this.roster.length) return; // empty cell, nothing to pick up
+    // A press starting on the sell button is a click, not a drag -- letting
+    // it start a drag anyway means onPointerUp's render() replaces the
+    // button's own DOM node (a fresh .content) before the browser's
+    // following click event can land on it, so the sell silently never
+    // fires.
+    if (e.target.closest(".sell-btn")) return;
+    if (!this.run.board.slots[slot]) return;
     const el = slotEl("Player", slot);
     el.setPointerCapture(e.pointerId);
     const rect = el.getBoundingClientRect();
@@ -582,12 +709,18 @@ class Prep {
     this.drag.el.style.transform = "";
     this.highlightDropTarget(null);
 
-    if (over !== null && over !== this.drag.fromSlot && over < this.roster.length) {
-      const [moved] = this.roster.splice(this.drag.fromSlot, 1);
-      this.roster.splice(over, 0, moved);
+    const occupied = this.boardOccupiedCount();
+    if (over !== null && over !== this.drag.fromSlot && over < occupied) {
+      const slots = this.run.board.slots;
+      const [moved] = slots.splice(this.drag.fromSlot, 1);
+      slots.splice(over, 0, moved);
     }
     this.drag = null;
     this.render(); // also the snap-back, when the drop wasn't a valid target
+  }
+
+  boardOccupiedCount() {
+    return this.run.board.slots.filter((u) => u !== null).length;
   }
 
   slotAtPoint(x, y) {
@@ -595,7 +728,8 @@ class Prep {
     // to follow the pointer, so it visually sits wherever the pointer is --
     // testing it too would always match slot 0 against itself before ever
     // reaching the actual card underneath.
-    for (let i = 0; i < this.roster.length; i++) {
+    const occupied = this.boardOccupiedCount();
+    for (let i = 0; i < occupied; i++) {
       if (i === this.drag?.fromSlot) continue;
       const r = slotEl("Player", i).getBoundingClientRect();
       if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
@@ -604,77 +738,118 @@ class Prep {
   }
 
   highlightDropTarget(slot) {
-    for (let i = 0; i < this.roster.length; i++) {
+    const occupied = this.boardOccupiedCount();
+    for (let i = 0; i < occupied; i++) {
       slotEl("Player", i).classList.toggle("drop-target", i === slot && i !== this.drag?.fromSlot);
     }
   }
 
-  // A full 8-slot Party for bg-wasm: the current order, left-packed (it
-  // already is one, by construction), padded with nulls.
-  boardJson() {
-    const playerSlots = Array.from({ length: SLOTS }, (_, i) => this.roster[i] ?? null);
-    return JSON.stringify({
-      player: { slots: playerSlots },
-      opposing: { slots: this.opposingSlots },
-    });
-  }
-
   fight() {
-    this.onFight(this.boardJson());
+    this.onFight(endTurn(JSON.stringify(this.run)));
   }
 }
 
-// bg-wasm resolves the fight -- the same engine `bg-cli` calls, running in
-// the browser instead of shelled out to. `resolve` takes/returns the exact
-// JSON `bg-cli` would produce, so there is one wire format either way.
-import init, { showcase_board_json, resolve as resolveWasm } from "./pkg/bg_wasm.js";
+// bg-wasm runs both halves of a round -- the Prep Phase's shop and the
+// Action Phase's fight -- so nothing here reimplements engine rules to
+// interpret a RunState or a Resolution; every action sends the current one
+// and gets the next one back.
+import init, {
+  resolve as resolveWasm,
+  start_run as startRunWasm,
+  shop_roster_json as shopRosterJson,
+  shop_buy as shopBuy,
+  shop_sell as shopSell,
+  shop_reroll as shopReroll,
+  shop_toggle_freeze as shopToggleFreeze,
+  shop_upgrade_tavern as shopUpgradeTavern,
+  end_turn as endTurn,
+  apply_fight_result as applyFightResult,
+  start_new_round as startNewRound,
+} from "./pkg/bg_wasm.js";
 
 async function boot() {
   await init();
-  const fixture = JSON.parse(showcase_board_json());
-  const playerRoster = fixture.player.slots.filter((u) => u !== null);
+  const roster = JSON.parse(shopRosterJson());
 
+  let shop = null;
   let player = null; // the current fight's Player, once one exists
+  let pendingResolutionJson = null; // this fight's Resolution, kept raw for apply_fight_result
 
-  function enterPrep() {
+  function newRun() {
+    // The seed is a Rust u64, mapped to a JS BigInt because a JS number
+    // can't hold the full range losslessly.
+    const run = JSON.parse(startRunWasm(BigInt(Date.now())));
+    shop = new Shop(run, roster, (boardJson) => enterFight(boardJson));
+    enterShop();
+  }
+
+  function enterShop() {
     player?.stopAuto();
     player = null;
+    pendingResolutionJson = null;
     logEl.innerHTML = "";
     outcomeEl.textContent = "";
     beatValueEl.textContent = "—";
     resultValueEl.textContent = "—";
     clearOverlay();
-    prepControlsEl.hidden = false;
+    opposingRankLabelEl.textContent = "Shop";
+    shopControlsEl.hidden = false;
     playbackControlsEl.hidden = true;
-    prep.render();
+    runOverControlsEl.hidden = true;
+    shopMessageEl.textContent = "";
+    shop.render();
   }
 
-  function enterPlayback(boardJson) {
-    // The seed is a Rust u64, which wasm-bindgen maps to a JS BigInt because
-    // a JS number can't hold the full range losslessly. A fresh one each
-    // fight, so re-fighting the same arrangement doesn't replay identically.
+  function enterFight(boardJson) {
+    // A fresh seed each fight, so re-fighting the same board (Reset, on the
+    // fight itself) still replays exactly, but a new round never repeats
+    // the last one's rolls.
     const seed = BigInt(Date.now());
-    const fight = JSON.parse(resolveWasm(boardJson, seed));
+    pendingResolutionJson = resolveWasm(boardJson, seed);
+    const fight = JSON.parse(pendingResolutionJson);
     const steps = buildBeatSteps(fight.log, fight.boards);
     player = new Player(fight.initial_board, steps);
-    prepControlsEl.hidden = true;
+    opposingRankLabelEl.textContent = "Opposing party";
+    shopControlsEl.hidden = true;
     playbackControlsEl.hidden = false;
   }
 
-  const prep = new Prep(playerRoster, fixture.opposing.slots, (boardJson) => enterPlayback(boardJson));
+  // "Continue": tell the run what the fight decided, then either the run is
+  // over (best of 3 -- two wins or two losses) or it's the next round's shop.
+  function afterFight() {
+    shop.run = JSON.parse(applyFightResult(JSON.stringify(shop.run), pendingResolutionJson));
+    if (shop.run.wins >= 2 || shop.run.losses >= 2) {
+      enterRunOver();
+    } else {
+      shop.run = JSON.parse(startNewRound(JSON.stringify(shop.run)));
+      enterShop();
+    }
+  }
+
+  function enterRunOver() {
+    player?.stopAuto();
+    shopControlsEl.hidden = true;
+    playbackControlsEl.hidden = true;
+    runOverControlsEl.hidden = false;
+    runOverTextEl.textContent =
+      shop.run.wins >= 2
+        ? `Run won! Final record ${shop.run.wins}-${shop.run.losses}.`
+        : `Run lost. Final record ${shop.run.wins}-${shop.run.losses}.`;
+  }
 
   prevBtn.addEventListener("click", () => player?.prev());
   nextBtn.addEventListener("click", () => player?.next());
   playBtn.addEventListener("click", () => player?.play());
   resetBtn.addEventListener("click", () => player?.reset());
   skipBtn.addEventListener("click", () => player?.skipToEnd());
-  rearrangeBtn.addEventListener("click", () => enterPrep());
+  continueBtn.addEventListener("click", () => afterFight());
+  newRunBtn.addEventListener("click", () => newRun());
   logToggleEl.addEventListener("click", () => {
     const expanded = logToggleEl.getAttribute("aria-expanded") === "true";
     logToggleEl.setAttribute("aria-expanded", String(!expanded));
   });
 
-  enterPrep();
+  newRun();
 }
 
 boot();

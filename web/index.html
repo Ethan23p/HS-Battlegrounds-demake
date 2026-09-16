@@ -12,14 +12,14 @@
 <div class="stage">
   <div class="playfield" id="battlefield">
     <div class="rank" id="opposing-rank">
-      <div class="rank-label"><span class="dot"></span>Opposing party</div>
+      <div class="rank-label"><span class="dot"></span><span id="opposing-rank-label">Opposing party</span></div>
       <div class="row" id="opposing-row"></div>
     </div>
 
     <div class="spine">Action Phase</div>
 
     <div class="rank" id="player-rank">
-      <div class="rank-label"><span class="dot"></span>Player party</div>
+      <div class="rank-label"><span class="dot"></span>Your board</div>
       <div class="row" id="player-row"></div>
     </div>
 
@@ -44,6 +44,18 @@
   <aside class="info">
     <div class="readout">
       <div class="field">
+        <span class="label">Gold</span>
+        <span class="value" id="gold-value">—</span>
+      </div>
+      <div class="field">
+        <span class="label">Tier</span>
+        <span class="value" id="tier-value">—</span>
+      </div>
+      <div class="field">
+        <span class="label">Record</span>
+        <span class="value" id="record-value">—</span>
+      </div>
+      <div class="field">
         <span class="label">Beat</span>
         <span class="value" id="beat-value">—</span>
       </div>
@@ -53,8 +65,9 @@
       </div>
     </div>
 
-    <div class="controls" id="prep-controls">
-      <span class="prep-hint">Drag your party into order</span>
+    <div class="controls" id="shop-controls">
+      <button class="transport" id="reroll">🎲 Reroll <span class="cost">3g</span></button>
+      <button class="transport" id="upgrade-tavern">⬆ Upgrade Tavern <span class="cost" id="upgrade-cost"></span></button>
       <button class="transport" id="fight">⚔ Fight</button>
     </div>
 
@@ -66,7 +79,7 @@
       <button class="transport" id="play">▶ Play</button>
       <button class="transport" id="reset">↺ Reset</button>
       <button class="transport" id="skip">⏭ Skip to end</button>
-      <button class="transport" id="rearrange">⇤ Rearrange</button>
+      <button class="transport" id="continue">Continue ⇥</button>
       <span class="speed-label">Speed</span>
       <select id="speed">
         <option value="600">Slow</option>
@@ -75,7 +88,13 @@
       </select>
     </div>
 
+    <div class="controls" id="run-over-controls" hidden>
+      <span id="run-over-text"></span>
+      <button class="transport" id="new-run">↺ New Run</button>
+    </div>
+
     <div id="outcome"></div>
+    <div id="shop-message" role="status"></div>
 
     <section class="dispatch">
       <button class="dispatch-label" id="log-toggle" aria-expanded="true" aria-controls="log">

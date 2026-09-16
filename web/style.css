@@ -251,6 +251,21 @@ button.transport:hover:not(:disabled) { border-color: var(--indigo); color: var(
 button.transport:disabled { opacity: 0.4; cursor: default; }
 button.transport:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
 
+button.transport .cost {
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+#shop-message {
+  font-size: 12px;
+  color: var(--crimson);
+  min-height: 0;
+}
+
+#shop-message:empty { display: none; }
+
 .controls select {
   font-family: var(--font-data);
   background: var(--panel);
@@ -471,6 +486,60 @@ button.transport:focus-visible { outline: 2px solid var(--indigo); outline-offse
 }
 
 .badge.DivineShield { background: var(--gold); color: var(--gold-ink); }
+
+/* Shop offers (opposing row, in Prep) and board cards a player can sell
+   (player row, in Prep) -- affordances layered onto the same .unit rather
+   than a separate card type, so buying/selling reuses the exact same
+   rendering the fight viewer already has. */
+.unit.offer {
+  cursor: pointer;
+  transition: transform 120ms ease, opacity 200ms ease, background 150ms ease,
+    border-color 150ms ease;
+}
+
+.unit.offer:hover { border-color: var(--gold); }
+.unit.offer.unaffordable { opacity: 0.5; cursor: default; }
+
+.freeze-btn {
+  all: unset;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  cursor: pointer;
+  background: var(--line);
+  color: var(--ink-faint);
+}
+
+.unit.frozen { border-color: var(--indigo); }
+.unit.frozen .freeze-btn { background: var(--indigo); color: var(--indigo-ink); }
+
+.sell-btn {
+  all: unset;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--crimson);
+  color: var(--crimson);
+}
+
+.sell-btn:hover { background: var(--crimson); color: var(--panel); }
 
 /* The actual BG attack motion is simple: the striking card snaps toward its
    target and rubber-bands back, no more. --clash-x/--clash-y are the

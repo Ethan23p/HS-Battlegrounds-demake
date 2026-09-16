@@ -55,31 +55,72 @@ calls, not design ones.
 real mobile-device emulation (Pointer Events, one code path for mouse/touch/pen). Still
 one-shot: arrange, then fight, no persistent run — that's 0.3.
 
-### 0.3 — A shop and a run — next
+### 0.3 — A shop and a run — done
 Buy/sell/reroll, gold, multiple rounds. First version that's a game rather than a fight
-viewer. All three blockers from the original draft are already resolved:
+viewer. Planned in chat first (abstract functions, then interfaces, then the tangible
+surface, Ethan's suggested order) before any code, and two design questions were settled
+along the way, both recorded in DESIGN.md Ongoing:
 
-- **Opponent source:** procedurally generated, kept light — not a hand-authored
-  bestiary, not run history (`docs/DESIGN.md` Ongoing). What "kept light" means for the
-  actual generation rule is still Claude's to design as engineering.
-- **Economy:** a simple placeholder to start — fixed gold-per-turn, flat reroll/buy/tier
-  costs, just enough to make the loop testable. Real numbers get tuned once the loop
-  exists and can be felt, not designed on paper first. Sequencing choice, not a design
-  ruling, so it isn't in DESIGN.md.
-- **Persistence:** none yet. A run is one sitting; closing the tab ends it. Also
-  sequencing, not a design fact about the eventual offline model.
+- **Pool conservation.** Every Unit the shop offers draws from, and returns to, a scarce
+  shared pool -- Ethan's framing, "an informal discipline" of treating in-game objects as
+  drawing from and returning to a finite resource, applied specifically to Units (not
+  gold, which stays a plain abstract resource; not tokens, which never enter the pool by
+  construction). A shown offer reserves its copy immediately; buying converts that
+  reservation into a permanent absence; selling, or an unbought offer clearing on reroll
+  or a new round, returns it. `bg-sim::prep_phase::Pool`.
+- **Runs are best of 3**, not a health total -- the damage-on-loss formula depends on a
+  broader meta-game that isn't decided yet, so best of 3 sidesteps needing one entirely.
+  `apply_fight_result` just tallies wins/losses; `run_outcome` fires at two of either.
 
-This is the resume point for "recenter on gameplay."
+Landed as `bg-sim::prep_phase` (`RunState`, `Pool`, `ShopSlot`, `RunOutcome`; buy/sell/
+reroll/freeze/upgrade-tavern/matchmake/end-turn/apply-fight-result/start-new-round),
+exposed to the browser via `bg-wasm` in the same plain-JSON tell-don't-ask shape
+`resolve()` already used, and a `web/` UI that repurposes the existing fight-viewer
+layout rather than building a second one: the opposing row is the shop while it's on
+screen (relabeled "Shop", swapped back to "Opposing party" the moment a fight starts),
+the player row is the actual persistent board, carrying over round to round with the
+same drag-to-reorder Pointer Events code 0.2 built, just re-targeted at
+`RunState.board.slots`.
+
+A real gap surfaced and got fixed during testing, not left standing: `apply_fight_result`
+initially only tallied wins/losses and never synced the board with what the fight
+actually did, so a Unit that died in combat would return next round at full health --
+undermining the entire point of a persistent run. Fixed by rebuilding the board from
+`Resolution::final_board`'s survivors, each restored fresh from its Definition (the
+same reset a newly bought Unit already gets, since nothing in this engine yet grants a
+Unit a permanent change beyond its Definition) -- damage and fight-only state (Divine
+Shield spent, Poisonous marks) don't carry into the next round, but death does, matching
+Battlegrounds itself. A second, smaller bug: the sell button sits inside a draggable
+card, and a plain click on it also started the drag machinery, whose pointerup handler
+re-rendered the card (replacing the button's own DOM node) before the browser's `click`
+event could land on it -- sells silently never fired. Fixed by having the drag handler
+ignore presses starting on the sell button.
+
+Verified end-to-end: buy/sell/freeze/reroll/upgrade-tavern each surfaces the engine's own
+refusal reason on failure (not enough gold, board full, ...); a frozen offer survives a
+reroll; drag-to-reorder produces a real permutation (checked directly against
+`RunState.board.slots`, since the shop roster's low tier-1 variety made two on-screen
+units coincidentally share a name more often than not); the full loop (shop -> fight ->
+continue -> next round, or run-over at two wins/losses) runs clean through multiple
+rounds with no console errors; a Draw correctly scores neither side.
+
+Still placeholder, deliberately: flat buy/sell/reroll/tavern-upgrade costs, a simple
+gold-per-round ramp, a tapered-by-tier pool size, a 12-Unit hardcoded roster
+(`fixtures::shop_roster`, two per Tavern Tier, keywords only -- no abilities execute yet).
+Real numbers get tuned once the loop can be felt, not designed on paper first.
 
 ### 0.4 — Data-driven content, for real
 The WASM binding already exists (0.2), so this is narrower than it once was: Units/
-abilities move from `bg-cli`'s hardcoded fixture to RON assets the page loads at
-runtime, so adding a Unit is a file edit, not a recompile.
+abilities move from `fixtures::shop_roster`'s hardcoded roster to RON assets the page
+loads at runtime, so adding a Unit is a file edit, not a recompile.
 
 **Open (design, only if it comes up before this point):** ability authoring beyond
-keywords — Departure 4 explicitly deferred this to "a dedicated discussion."
+keywords — Departure 4 explicitly deferred this to "a dedicated discussion." Abilities
+exist as data (`units::Ability`/`Effect`/`Trigger`) but nothing executes them yet --
+0.3's roster is keyword-only for exactly that reason.
 
 ### 0.5+ — Polish, VFX, juice
 Deliberately last: juice on rules that might still change is wasted work. The rendering
-pass just finished (arrows, damage numbers, clash motion, proportional layout) covers the
-fight viewer; a shop screen (0.3) will want its own pass once it exists to look at.
+pass finished before 0.3 (arrows, damage numbers, clash motion, proportional layout)
+covers the fight viewer; the shop screen built in 0.3 is plain by comparison (click to
+buy/sell/freeze, no animation) and will want its own pass once the loop itself is settled.

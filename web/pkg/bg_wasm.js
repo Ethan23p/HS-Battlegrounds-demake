@@ -1,7 +1,9 @@
 /* @ts-self-types="./bg_wasm.d.ts" */
 
 /**
- * Record a fight's `Resolution` against the run's best-of-3 score.
+ * Record a fight's `Resolution` against the run's best-of-3 score, and sync
+ * the board with what the fight actually left standing -- damage and
+ * fight-only state don't carry into the next round, but death does.
  * @param {string} run_json_in
  * @param {string} resolution_json
  * @returns {string}
