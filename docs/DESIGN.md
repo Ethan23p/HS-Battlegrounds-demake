@@ -194,3 +194,26 @@ parties, other runs, something generated? Asked directly once 0.1 shipped.*
 ([0007](transcripts/0007-the-front-end-and-the-scratchpad.md))
 
 > Procedurally generated, not overly involved at this stage
+
+#### Every in-game object draws from, and returns to, a scarce shared pool
+
+*0.3 planning raised whether the shop's Unit pool should be scarce (as in real
+Battlegrounds, where a bought copy is unavailable to be drawn again until sold or the
+Unit dies) or effectively infinite, since this game is confirmed single-player. Ethan's
+answer widens the question into a general principle rather than a yes/no on Units alone.*
+([0010](transcripts/0010-scarcity-and-best-of-three.md))
+
+> I'd like to account for scarcity, even at this early stage; I'm not thinking like per
+> unit tracking, but basically all in game objects (abstractly speaking) take resources
+> from a scarce pool and, in theory, end up with their resources back in that pool.
+> Early on I referred to this as having an internal physics, like laws of conservation.
+
+#### Runs are best of 3
+
+*Damage-on-loss (what a losing player's health total should take, and from what) turned
+out to depend on a broader meta-game structure that isn't decided yet. Asked directly
+during 0.3 planning.*
+([0010](transcripts/0010-scarcity-and-best-of-three.md))
+
+> For "damage on loss" this depends on the broad meta game which we land on, which I'm
+> not sure of, so I'd say runs are best of 3
