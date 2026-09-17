@@ -572,9 +572,10 @@ class Player {
 // ---------------------------------------------------------------------------
 
 class Shop {
-  constructor(run, roster, onFight) {
+  constructor(run, roster, rosterJson, onFight) {
     this.run = run;
     this.roster = roster; // the shop's UnitDef list, for offer name/stats/keywords by id
+    this.rosterJson = rosterJson; // the same list, as JSON -- every roster-needing wasm call wants this
     this.onFight = onFight;
     this.drag = null;
     this.msgTimer = null;
@@ -641,6 +642,8 @@ class Shop {
   // whatever the action needs) to bg-wasm, replace it with whatever comes
   // back, re-render. On a refusal (not enough gold, board full, ...) bg-wasm
   // throws with the engine's own reason -- shown, not silently swallowed.
+  // `withRoster` calls also need the shop's roster, for actions that place a
+  // Unit or resolve one of its abilities against `assets/roster.ron`.
   call(fn, ...args) {
     try {
       this.run = JSON.parse(fn(JSON.stringify(this.run), ...args));
@@ -650,16 +653,20 @@ class Shop {
     }
   }
 
+  callWithRoster(fn, ...args) {
+    this.call((runJson, ...rest) => fn(this.rosterJson, runJson, ...rest), ...args);
+  }
+
   buy(offer) {
-    this.call(shopBuy, offer);
+    this.callWithRoster(shopBuy, offer);
   }
 
   sell(slot) {
-    this.call(shopSell, slot);
+    this.callWithRoster(shopSell, slot);
   }
 
   reroll() {
-    this.call(shopReroll);
+    this.callWithRoster(shopReroll);
   }
 
   toggleFreeze() {
@@ -767,8 +774,13 @@ class Shop {
     }
   }
 
+  // end_turn fires EndOfTurn abilities (a Unit can grow at the close of
+  // Prep), so it hands back the *updated* RunState alongside the Board --
+  // that has to carry into next round the same as everything else does.
   fight() {
-    this.onFight(endTurn(JSON.stringify(this.run)));
+    const { run, board } = JSON.parse(endTurn(this.rosterJson, JSON.stringify(this.run)));
+    this.run = run;
+    this.onFight(JSON.stringify(board));
   }
 }
 
@@ -777,9 +789,9 @@ class Shop {
 // interpret a RunState or a Resolution; every action sends the current one
 // and gets the next one back.
 import init, {
+  parse_roster as parseRoster,
   resolve as resolveWasm,
   start_run as startRunWasm,
-  shop_roster_json as shopRosterJson,
   shop_buy as shopBuy,
   shop_sell as shopSell,
   shop_reroll as shopReroll,
@@ -792,7 +804,12 @@ import init, {
 
 async function boot() {
   await init();
-  const roster = JSON.parse(shopRosterJson());
+  // The roster is data (assets/roster.ron, copied to web/roster.ron by
+  // scripts/build_web.sh), not compiled in -- fetched once here as text and
+  // handed to bg-wasm's own RON parser, never parsed by hand in JS.
+  const rosterRonText = await (await fetch("roster.ron")).text();
+  const rosterJson = parseRoster(rosterRonText);
+  const roster = JSON.parse(rosterJson);
 
   let shop = null;
   let player = null; // the current fight's Player, once one exists
@@ -801,8 +818,8 @@ async function boot() {
   function newRun() {
     // The seed is a Rust u64, mapped to a JS BigInt because a JS number
     // can't hold the full range losslessly.
-    const run = JSON.parse(startRunWasm(BigInt(Date.now())));
-    shop = new Shop(run, roster, (boardJson) => enterFight(boardJson));
+    const run = JSON.parse(startRunWasm(rosterJson, BigInt(Date.now())));
+    shop = new Shop(run, roster, rosterJson, (boardJson) => enterFight(boardJson));
     enterShop();
   }
 
@@ -828,7 +845,7 @@ async function boot() {
     // fight itself) still replays exactly, but a new round never repeats
     // the last one's rolls.
     const seed = BigInt(Date.now());
-    pendingResolutionJson = resolveWasm(boardJson, seed);
+    pendingResolutionJson = resolveWasm(rosterJson, boardJson, seed);
     const fight = JSON.parse(pendingResolutionJson);
     const steps = buildBeatSteps(fight.log, fight.boards);
     player = new Player(fight.initial_board, steps);
@@ -840,17 +857,23 @@ async function boot() {
   // "Continue": tell the run what the fight decided, then either the run is
   // over (best of 3 -- two wins or two losses) or it's the next round's shop.
   function afterFight() {
-    shop.run = JSON.parse(applyFightResult(JSON.stringify(shop.run), pendingResolutionJson));
+    shop.run = JSON.parse(applyFightResult(rosterJson, JSON.stringify(shop.run), pendingResolutionJson));
     if (shop.run.wins >= 2 || shop.run.losses >= 2) {
       enterRunOver();
     } else {
-      shop.run = JSON.parse(startNewRound(JSON.stringify(shop.run)));
+      shop.run = JSON.parse(startNewRound(rosterJson, JSON.stringify(shop.run)));
       enterShop();
     }
   }
 
   function enterRunOver() {
     player?.stopAuto();
+    // Just the readout, not shop.render() -- that would also re-render both
+    // rows as shop offers, replacing the fight viewer's final board with a
+    // shop screen nobody asked to see here. The readout alone is otherwise
+    // stale: applyFightResult already updated shop.run's record, but
+    // nothing since has repainted the DOM to show it.
+    recordValueEl.textContent = `${shop.run.wins}-${shop.run.losses}`;
     shopControlsEl.hidden = true;
     playbackControlsEl.hidden = true;
     runOverControlsEl.hidden = false;

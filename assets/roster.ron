@@ -1,0 +1,165 @@
+// The shop's roster. A Vec<UnitDef> (see crates/bg-sim/src/units.rs) written
+// as data -- adding or changing a Unit here is a file edit, not a recompile.
+// bg-wasm's `parse_roster` and `bg_sim::units::load_roster` both read this
+// exact format.
+//
+// Named after psychology vocabulary, at Ethan's suggestion, purely as
+// flavor text -- the engine never reads `name` or `text` for anything but
+// display. One Unit per Trigger the ability engine executes, so each is
+// also a deliberate exercise of one corner of the vocabulary in
+// crates/bg-sim/src/abilities.rs; `suppressed_impulse` is Repression's
+// Deathrattle token, not a shop offer of its own.
+[
+    (
+        id: "instinct",
+        name: "Instinct",
+        tier: 1,
+        attack: 2,
+        health: 2,
+        tribes: [Beast],
+        text: "A Beast with nothing more calculated about it.",
+    ),
+    (
+        id: "placebo",
+        name: "Placebo",
+        tier: 1,
+        attack: 1,
+        health: 2,
+        abilities: [(
+            trigger: Battlecry,
+            effects: [Buff(target: Adjacent, attack: 1, health: 1)],
+        )],
+        text: "Battlecry: Give adjacent minions +1/+1.",
+    ),
+    (
+        id: "habituation",
+        name: "Habituation",
+        tier: 2,
+        attack: 2,
+        health: 3,
+        abilities: [(
+            trigger: OnSurviveDamage,
+            effects: [Buff(target: This, attack: 1)],
+        )],
+        text: "Whenever it survives damage, gain +1 Attack.",
+    ),
+    (
+        id: "extinction",
+        name: "Extinction",
+        tier: 2,
+        attack: 2,
+        health: 2,
+        abilities: [(
+            trigger: OnSell,
+            effects: [GainGold(1)],
+        )],
+        text: "Sell: Gain 1 extra gold.",
+    ),
+    (
+        id: "suppressed_impulse",
+        name: "Suppressed Impulse",
+        tier: 1,
+        attack: 1,
+        health: 1,
+        token: true,
+        text: "What Repression leaves behind.",
+    ),
+    (
+        id: "repression",
+        name: "Repression",
+        tier: 3,
+        attack: 3,
+        health: 2,
+        abilities: [(
+            trigger: Deathrattle,
+            effects: [Summon(unit: "suppressed_impulse", count: 2, modify: [Attack(1)])],
+        )],
+        text: "Deathrattle: Summon two 2/1 Suppressed Impulses.",
+    ),
+    (
+        id: "confirmation_bias",
+        name: "Confirmation Bias",
+        tier: 3,
+        attack: 2,
+        health: 4,
+        abilities: [(
+            trigger: AfterFriendlyPlayed,
+            condition: Some(SubjectHasTribe(Beast)),
+            effects: [Buff(target: Subject, attack: 1, health: 1)],
+        )],
+        text: "Whenever you play a Beast, give it +1/+1.",
+    ),
+    (
+        id: "sublimation",
+        name: "Sublimation",
+        tier: 4,
+        attack: 4,
+        health: 4,
+        abilities: [(
+            trigger: AfterFriendlyDeath,
+            effects: [Buff(target: This, attack: 1, health: 1)],
+        )],
+        text: "Whenever a friendly minion dies, gain +1/+1.",
+    ),
+    (
+        id: "groupthink",
+        name: "Groupthink",
+        tier: 4,
+        attack: 3,
+        health: 6,
+        abilities: [(
+            trigger: AfterFriendlySummon,
+            effects: [Buff(target: This, health: 1)],
+        )],
+        text: "Whenever a friendly minion is summoned, gain +1 Health.",
+    ),
+    (
+        id: "catharsis",
+        name: "Catharsis",
+        tier: 5,
+        attack: 5,
+        health: 4,
+        keywords: [Rally],
+        abilities: [(
+            trigger: OnAttack,
+            effects: [Damage(target: RandomEnemy(count: 1), amount: 2)],
+        )],
+        text: "Rally: Also deal 2 damage to a random enemy minion.",
+    ),
+    (
+        id: "transference",
+        name: "Transference",
+        tier: 5,
+        attack: 4,
+        health: 6,
+        abilities: [(
+            trigger: StartOfActionPhase,
+            effects: [Grant(target: AllFriendly(filter: (include_self: true)), keyword: DivineShield)],
+        )],
+        text: "Before combat starts, give your whole team Divine Shield.",
+    ),
+    (
+        id: "self_actualization",
+        name: "Self-Actualization",
+        tier: 6,
+        attack: 6,
+        health: 6,
+        abilities: [(
+            trigger: EndOfTurn,
+            effects: [Buff(target: This, attack: 2, health: 2)],
+        )],
+        text: "At the end of your turn, gain +2/+2.",
+    ),
+    (
+        id: "individuation",
+        name: "Individuation",
+        tier: 6,
+        attack: 6,
+        health: 8,
+        abilities: [(
+            trigger: StartOfTurn,
+            effects: [AddToHand(unit: "instinct", count: 1)],
+        )],
+        text: "At the start of your turn, add an Instinct to your board.",
+    ),
+]

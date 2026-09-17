@@ -4,19 +4,55 @@
  * Record a fight's `Resolution` against the run's best-of-3 score, and sync
  * the board with what the fight actually left standing -- damage and
  * fight-only state don't carry into the next round, but death does.
+ * @param {string} roster_json
  * @param {string} run_json_in
  * @param {string} resolution_json
  * @returns {string}
  */
-export function apply_fight_result(run_json_in, resolution_json) {
+export function apply_fight_result(roster_json, run_json_in, resolution_json) {
+    let deferred5_0;
+    let deferred5_1;
+    try {
+        const ptr0 = passStringToWasm0(roster_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(resolution_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.apply_fight_result(ptr0, len0, ptr1, len1, ptr2, len2);
+        var ptr4 = ret[0];
+        var len4 = ret[1];
+        if (ret[3]) {
+            ptr4 = 0; len4 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
+    } finally {
+        wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
+    }
+}
+
+/**
+ * Fire EndOfTurn and package this round's Board (the player's board against
+ * a procedural opponent) as JSON, ready for [`resolve`]. Returns the
+ * *updated* `RunState` alongside it -- EndOfTurn can change the board (a
+ * Unit growing at the close of Prep), and that has to carry into next
+ * round the same as everything else `RunState` remembers.
+ * @param {string} roster_json
+ * @param {string} run_json_in
+ * @returns {string}
+ */
+export function end_turn(roster_json, run_json_in) {
     let deferred4_0;
     let deferred4_1;
     try {
-        const ptr0 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(roster_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(resolution_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr1 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.apply_fight_result(ptr0, len0, ptr1, len1);
+        const ret = wasm.end_turn(ptr0, len0, ptr1, len1);
         var ptr3 = ret[0];
         var len3 = ret[1];
         if (ret[3]) {
@@ -32,18 +68,19 @@ export function apply_fight_result(run_json_in, resolution_json) {
 }
 
 /**
- * Package this round's Board (the player's board against a procedural
- * opponent) as JSON, ready for [`resolve`].
- * @param {string} run_json_in
+ * Parse a roster written in RON (`assets/roster.ron`) into the JSON every
+ * other function here expects. The one place RON parsing happens -- a
+ * browser only ever needs to `fetch` the text and hand it here once.
+ * @param {string} ron_text
  * @returns {string}
  */
-export function end_turn(run_json_in) {
+export function parse_roster(ron_text) {
     let deferred3_0;
     let deferred3_1;
     try {
-        const ptr0 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(ron_text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.end_turn(ptr0, len0);
+        const ret = wasm.parse_roster(ptr0, len0);
         var ptr2 = ret[0];
         var len2 = ret[1];
         if (ret[3]) {
@@ -63,128 +100,121 @@ export function end_turn(run_json_in) {
  *
  * `board_json` is a `Board` (see `bg_sim::party::Board`), typically one a
  * caller got from [`showcase_board_json`] and then rearranged.
+ * @param {string} roster_json
  * @param {string} board_json
  * @param {bigint} seed
  * @returns {string}
  */
-export function resolve(board_json, seed) {
-    let deferred3_0;
-    let deferred3_1;
+export function resolve(roster_json, board_json, seed) {
+    let deferred4_0;
+    let deferred4_1;
     try {
-        const ptr0 = passStringToWasm0(board_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(roster_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.resolve(ptr0, len0, seed);
-        var ptr2 = ret[0];
-        var len2 = ret[1];
+        const ptr1 = passStringToWasm0(board_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.resolve(ptr0, len0, ptr1, len1, seed);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
         if (ret[3]) {
-            ptr2 = 0; len2 = 0;
+            ptr3 = 0; len3 = 0;
             throw takeFromExternrefTable0(ret[2]);
         }
-        deferred3_0 = ptr2;
-        deferred3_1 = len2;
-        return getStringFromWasm0(ptr2, len2);
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
     } finally {
-        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
     }
 }
 
 /**
  * Buy shop offer `offer` (0-based) onto the first open board Slot.
+ * @param {string} roster_json
  * @param {string} run_json_in
  * @param {number} offer
  * @returns {string}
  */
-export function shop_buy(run_json_in, offer) {
-    let deferred3_0;
-    let deferred3_1;
+export function shop_buy(roster_json, run_json_in, offer) {
+    let deferred4_0;
+    let deferred4_1;
     try {
-        const ptr0 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(roster_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.shop_buy(ptr0, len0, offer);
-        var ptr2 = ret[0];
-        var len2 = ret[1];
+        const ptr1 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.shop_buy(ptr0, len0, ptr1, len1, offer);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
         if (ret[3]) {
-            ptr2 = 0; len2 = 0;
+            ptr3 = 0; len3 = 0;
             throw takeFromExternrefTable0(ret[2]);
         }
-        deferred3_0 = ptr2;
-        deferred3_1 = len2;
-        return getStringFromWasm0(ptr2, len2);
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
     } finally {
-        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
     }
 }
 
 /**
  * Spend gold to clear and redraw every unfrozen offer.
+ * @param {string} roster_json
  * @param {string} run_json_in
  * @returns {string}
  */
-export function shop_reroll(run_json_in) {
-    let deferred3_0;
-    let deferred3_1;
+export function shop_reroll(roster_json, run_json_in) {
+    let deferred4_0;
+    let deferred4_1;
     try {
-        const ptr0 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(roster_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.shop_reroll(ptr0, len0);
-        var ptr2 = ret[0];
-        var len2 = ret[1];
+        const ptr1 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.shop_reroll(ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
         if (ret[3]) {
-            ptr2 = 0; len2 = 0;
+            ptr3 = 0; len3 = 0;
             throw takeFromExternrefTable0(ret[2]);
         }
-        deferred3_0 = ptr2;
-        deferred3_1 = len2;
-        return getStringFromWasm0(ptr2, len2);
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
     } finally {
-        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
-    }
-}
-
-/**
- * The shop's roster (`bg_sim::fixtures::shop_roster`) as JSON, so a front end
- * can look up a shop offer's name/stats/keywords by `DefId` without the
- * engine needing to repeat that data inside every `RunState`.
- * @returns {string}
- */
-export function shop_roster_json() {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.shop_roster_json();
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
     }
 }
 
 /**
  * Sell the Unit in board Slot `slot` (0-based), refunding gold and returning
  * its copy to the pool.
+ * @param {string} roster_json
  * @param {string} run_json_in
  * @param {number} slot
  * @returns {string}
  */
-export function shop_sell(run_json_in, slot) {
-    let deferred3_0;
-    let deferred3_1;
+export function shop_sell(roster_json, run_json_in, slot) {
+    let deferred4_0;
+    let deferred4_1;
     try {
-        const ptr0 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(roster_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.shop_sell(ptr0, len0, slot);
-        var ptr2 = ret[0];
-        var len2 = ret[1];
+        const ptr1 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.shop_sell(ptr0, len0, ptr1, len1, slot);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
         if (ret[3]) {
-            ptr2 = 0; len2 = 0;
+            ptr3 = 0; len3 = 0;
             throw takeFromExternrefTable0(ret[2]);
         }
-        deferred3_0 = ptr2;
-        deferred3_1 = len2;
-        return getStringFromWasm0(ptr2, len2);
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
     } finally {
-        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
     }
 }
 
@@ -262,16 +292,47 @@ export function showcase_board_json() {
  * Advance to the next round: more gold, a fresh (frozen-respecting) shop.
  * Refuses once the run is already decided -- check `wins`/`losses` on the
  * `RunState` first (two of either ends it).
+ * @param {string} roster_json
  * @param {string} run_json_in
  * @returns {string}
  */
-export function start_new_round(run_json_in) {
+export function start_new_round(roster_json, run_json_in) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(roster_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.start_new_round(ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
+ * Start a fresh run: Tavern Tier 1, an empty board, a full pool, the first
+ * shop already drawn.
+ * @param {string} roster_json
+ * @param {bigint} seed
+ * @returns {string}
+ */
+export function start_run(roster_json, seed) {
     let deferred3_0;
     let deferred3_1;
     try {
-        const ptr0 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(roster_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.start_new_round(ptr0, len0);
+        const ret = wasm.start_run(ptr0, len0, seed);
         var ptr2 = ret[0];
         var len2 = ret[1];
         if (ret[3]) {
@@ -283,25 +344,6 @@ export function start_new_round(run_json_in) {
         return getStringFromWasm0(ptr2, len2);
     } finally {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
-    }
-}
-
-/**
- * Start a fresh run: Tavern Tier 1, an empty board, a full pool, the first
- * shop already drawn.
- * @param {bigint} seed
- * @returns {string}
- */
-export function start_run(seed) {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.start_run(seed);
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
     }
 }
 function __wbg_get_imports() {

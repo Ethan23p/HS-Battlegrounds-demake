@@ -23,6 +23,8 @@ name = "bg-wasm"
 version = "0.1.0"
 dependencies = [
  "bg-sim",
+ "ron",
+ "serde",
  "serde_json",
  "wasm-bindgen",
 ]

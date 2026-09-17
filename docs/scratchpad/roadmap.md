@@ -1,8 +1,13 @@
 # Front-end roadmap
 
-Not canon — see `README.md`. Current as of 2026-09-15.
+Not canon — see `README.md`. Current as of 2026-09-17.
 
 ## Where things stand
+
+- 0.1 through 0.4 are all done: fight viewer, drag-to-reorder, the shop/persistent-run
+  loop, and now abilities actually executing against a data-driven roster
+  (`assets/roster.ron`) rather than keyword-only placeholder Units. See each iteration's
+  own section below for what shipped and what bugs actually playing it surfaced.
 
 - `bg-sim`'s Action Phase is adapted to DESIGN.md: Board/Party/Slot/Unit/Beat/Intent,
   concurrent interactions within a beat, no ordering advantage between sides
@@ -142,20 +147,78 @@ Ethan also suggested a standing discipline for future changes to this loop: keep
 scripted Playwright sequence that plays through several mechanics at once (buy, sell,
 freeze, reroll, upgrade, fight, continue across rounds) and actually watch it run before
 committing, rather than trusting unit tests alone for what's fundamentally a feel-driven
-UI. Not yet built as a committed script -- the ad hoc Playwright checks in this round
-served that purpose but weren't kept. Worth doing properly next time this area changes.
+UI. Built this round as `scripts/playtest.js` (see 0.4 below) -- running it against the
+0.4 changes is exactly what caught the run-over-screen bug documented there.
 
-### 0.4 — Data-driven content, for real
-The WASM binding already exists (0.2), so this is narrower than it once was: Units/
-abilities move from `fixtures::shop_roster`'s hardcoded roster to RON assets the page
-loads at runtime, so adding a Unit is a file edit, not a recompile.
+### 0.4 — Abilities execute, and the roster is data -- done
 
-**Open (design, only if it comes up before this point):** ability authoring beyond
-keywords — Departure 4 explicitly deferred this to "a dedicated discussion." Abilities
-exist as data (`units::Ability`/`Effect`/`Trigger`) but nothing executes them yet --
-0.3's roster is keyword-only for exactly that reason.
+Planned in chat first, same structure as 0.3 (abstract functions, then interfaces, then
+the tangible surface). Two real design questions were open going in, both settled and
+recorded in DESIGN.md Ongoing:
 
-### 0.5+ — Polish, VFX, juice
+- **Ability authoring is a fixed vocabulary, extended on request, not a scripting
+  layer.** `units::Trigger`/`Condition`/`Selector`/`Effect` already existed as an
+  unexecuted vocabulary; the question was whether to build the engine for it (extending
+  it by hand as new abilities need something it can't express) or embed something like
+  Rhai so any mechanic is expressible without an engine change. Ethan's framing: Claude
+  itself, asked to add the variant a new ability needs, *is* the extensibility
+  mechanism -- there's no expectation of hand-authored or human-scriptable abilities.
+- **Roster content is named from psychology vocabulary**, at Ethan's suggestion, purely
+  as flavor text the engine never reads for anything but display -- not encoded meaning,
+  just a more interesting naming scheme than the placeholder animal names 0.3 shipped
+  with.
+
+**Landed as `bg-sim::abilities`** (`fire_own`/`fire_deathrattle`/`fire_broadcast`/
+`fire_all`): walks a Unit's `Ability` list for a fired `Trigger`, checks its `Condition`,
+resolves each `Effect`'s `Selector` into concrete Units, and applies it. Wired at points
+`action_phase::resolve_with_roster` and `prep_phase::RunState` already pass through --
+Deathrattle and AfterFriendlyDeath in `bury`, OnAttack before a blow lands (so Rally-style
+self-buffs affect that same attack), OnSurviveDamage after one, StartOfActionPhase once
+before the first Beat, OnBuy/Battlecry/AfterFriendlyPlayed on `buy`, OnSell on `sell`,
+StartOfTurn on `start_new_round`, EndOfTurn on `end_turn`. `resolve` (no abilities, `&[]`
+roster) stays as a thin wrapper so none of `action_phase`'s 38 existing combat-mechanics
+tests needed to change -- `resolve_with_roster` is the new entry point that also executes
+abilities, used everywhere abilities should actually run.
+
+`GainGold` is the one Effect the module can't apply on its own (gold lives on
+`RunState`, not `Board`); every entry point threads a `gold: &mut u32` through for it,
+and an Action Phase call passes a throwaway scratch value -- which is exactly
+`GainGold`'s own documented "ignored in the Action Phase." `AddToHand` has no real hand
+to add to (buying already places a Unit straight onto the board), so it places directly,
+the same as a purchase does.
+
+**The roster moved from `fixtures::shop_roster` (deleted) to `assets/roster.ron`** -- a
+`Vec<UnitDef>` written as data, parsed by `units::load_roster` (the one place RON parsing
+happens). `bg-wasm` exposes `parse_roster(ron_text) -> json`; every other Prep Phase wasm
+function now takes `roster_json` as a parameter instead of reaching for a hardcoded
+roster internally, since the roster is something the browser fetches
+(`web/roster.ron`, copied from `assets/roster.ron` by `scripts/build_web.sh`) rather than
+something compiled in. 13 Units (12 shop offers plus one Deathrattle token), one per
+`Trigger` the engine executes, named from psychology vocabulary (Instinct, Placebo,
+Habituation, Extinction, Repression, Confirmation Bias, Sublimation, Groupthink,
+Catharsis, Transference, Self-Actualization, Individuation, Suppressed Impulse).
+
+A real bug surfaced immediately by actually playing it, not left standing: Placebo's
+Battlecry never fired, because `buy()` only fired `Trigger::OnBuy` -- `units::Trigger`
+names Battlecry ("played from hand") and OnBuy ("bought into hand") as two separate
+moments, and this engine collapses hand and board into one buy step, so both need to
+fire together there. A second, smaller one: the run-over screen's sidebar Record readout
+went stale one fight behind the actual final score, since `enterRunOver` never repainted
+it (and calling the shop's full `render()` there would have overwritten the final fight's
+board with shop-offer styling instead) -- fixed by refreshing just that one field.
+
+Verified per-ability with direct `bg-wasm` calls in-browser (buy/sell/fight sequences
+engineered to exercise each `Trigger` deterministically) and end-to-end with
+`scripts/playtest.js` (buy, freeze/reroll, sell, drag-reorder, fight across rounds to a
+run-over) -- the latter is the standing discipline Ethan asked for, kept as a committed
+script rather than an ad hoc one-off this time.
+
+Still placeholder, deliberately: ability effects are unbalanced hand-picked numbers, same
+spirit as 0.3's costs. `fixtures::showcase_board` (a separate, small hardcoded fixture
+for `bg-cli`/`showcase_board_json`) is untouched -- it was never the shop roster and
+isn't part of what 0.4 moved to data.
+
+### 0.5 — Polish, VFX, juice
 Deliberately last: juice on rules that might still change is wasted work. The rendering
 pass finished before 0.3 (arrows, damage numbers, clash motion, proportional layout)
 covers the fight viewer; the shop screen built in 0.3 is plain by comparison (click to

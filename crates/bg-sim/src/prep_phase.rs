@@ -26,11 +26,12 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::abilities;
 use crate::action_phase::Outcome;
 use crate::party::Unit;
-use crate::party::{Board, Party, SLOTS};
+use crate::party::{Board, Party, SLOTS, Side};
 use crate::rng::{Domain, Rng, Seed};
-use crate::units::{DefId, UnitDef};
+use crate::units::{DefId, Trigger, UnitDef};
 
 /// Tavern tiers run 1..=6, same range `UnitDef::tier` already uses.
 pub const MAX_TAVERN_TIER: u8 = 6;
@@ -235,6 +236,60 @@ impl RunState {
         self.seed.stream(domain, self.round as u64)
     }
 
+    /// Run a self-triggered ability against `self.board` alone. Prep Phase has
+    /// no opposing Party to fight, so a scratch empty one stands in;
+    /// cross-side selectors (RandomEnemy/AllEnemy) are documented in
+    /// `units::Selector` as meaningless outside the Action Phase, and simply
+    /// find nothing against it.
+    fn fire_own(&mut self, roster: &[UnitDef], slot: usize, trigger: Trigger) {
+        let mut board = Board::new(self.board.clone(), Party::new());
+        let mut log = Vec::new();
+        let mut rng = self.rng(Domain::Effect);
+        abilities::fire_own(
+            &mut board,
+            roster,
+            Side::Player,
+            slot,
+            trigger,
+            self.tavern_tier,
+            &mut log,
+            &mut rng,
+            &mut self.gold,
+        );
+        self.board = board.player;
+    }
+
+    /// Broadcast a trigger to the rest of `self.board`, with `subject_slot`
+    /// as the ability's Subject. See [`Self::fire_own`] on the scratch board.
+    fn fire_broadcast(&mut self, roster: &[UnitDef], subject_slot: usize, trigger: Trigger) {
+        let mut board = Board::new(self.board.clone(), Party::new());
+        let mut log = Vec::new();
+        let mut rng = self.rng(Domain::Effect);
+        abilities::fire_broadcast(
+            &mut board,
+            roster,
+            Side::Player,
+            subject_slot,
+            trigger,
+            self.tavern_tier,
+            &mut log,
+            &mut rng,
+            &mut self.gold,
+        );
+        self.board = board.player;
+    }
+
+    /// Fire `trigger` for every Unit already on the board, each for itself --
+    /// StartOfTurn, EndOfTurn.
+    fn fire_all_own(&mut self, roster: &[UnitDef], trigger: Trigger) {
+        for slot in (0..SLOTS)
+            .filter(|&i| self.board.get(i).is_some())
+            .collect::<Vec<_>>()
+        {
+            self.fire_own(roster, slot, trigger);
+        }
+    }
+
     /// Return every unfrozen offer to the pool, then draw a fresh shop up to
     /// this Tavern Tier's size. Sequential mutable borrows of `self.shop` and
     /// `self.pool`, not simultaneous -- deliberately not a `retain` closure,
@@ -297,12 +352,23 @@ impl RunState {
             .find(|&i| self.board.get(i).is_none())
             .expect("checked board.len() < SLOTS above");
         self.board.put(empty, unit);
+        // Buying is both moments `units::Trigger` names separately: bought
+        // into hand (OnBuy) and played into a Slot (Battlecry). This engine
+        // has no hand step in between, so both fire together, right here.
+        self.fire_own(roster, empty, Trigger::OnBuy);
+        self.fire_own(roster, empty, Trigger::Battlecry);
+        self.fire_broadcast(roster, empty, Trigger::AfterFriendlyPlayed);
         Ok(())
     }
 
     /// Sell a Unit off the board, refunding gold and returning its copy to
-    /// the pool.
-    pub fn sell(&mut self, board_slot: usize) -> Result<(), ShopError> {
+    /// the pool. OnSell fires while it's still standing there -- there is
+    /// nothing left for its own `Selector::This` to reach once it's gone.
+    pub fn sell(&mut self, roster: &[UnitDef], board_slot: usize) -> Result<(), ShopError> {
+        if self.board.get(board_slot).is_none() {
+            return Err(ShopError::SlotEmpty);
+        }
+        self.fire_own(roster, board_slot, Trigger::OnSell);
         let unit = self.board.take(board_slot).ok_or(ShopError::SlotEmpty)?;
         self.board.compact();
         self.gold += SELL_REFUND;
@@ -340,8 +406,10 @@ impl RunState {
         Party::from_units(units).expect("count is bounded by SLOTS above")
     }
 
-    /// Package this round's Board for `action_phase::resolve`.
-    pub fn end_turn(&self, roster: &[UnitDef]) -> Board {
+    /// Fire EndOfTurn for the board being taken into the fight, then package
+    /// it against a procedural opponent for `action_phase::resolve_with_roster`.
+    pub fn end_turn(&mut self, roster: &[UnitDef]) -> Board {
+        self.fire_all_own(roster, Trigger::EndOfTurn);
         Board::new(self.board.clone(), self.matchmake(roster))
     }
 
@@ -384,11 +452,13 @@ impl RunState {
         }
     }
 
-    /// Advance to the next round: more gold, a fresh (frozen-respecting) shop.
+    /// Advance to the next round: more gold, a fresh (frozen-respecting) shop,
+    /// and StartOfTurn for everything already on the board.
     pub fn start_new_round(&mut self, roster: &[UnitDef]) {
         self.round += 1;
         self.gold = gold_for_round(self.round);
         self.refresh_shop(roster);
+        self.fire_all_own(roster, Trigger::StartOfTurn);
     }
 }
 
@@ -424,6 +494,35 @@ mod tests {
     }
 
     #[test]
+    fn buying_fires_battlecry_not_just_onbuy() {
+        use crate::units::{Ability, Effect, Selector};
+
+        let mut caster = def("caster", 1);
+        caster.abilities = vec![Ability {
+            trigger: Trigger::Battlecry,
+            condition: None,
+            effects: vec![Effect::Buff {
+                target: Selector::This,
+                attack: 5,
+                health: 0,
+            }],
+        }];
+        let roster = vec![caster];
+        let mut run = RunState::new(Seed(20), &roster);
+        run.gold = 100;
+        run.shop = vec![ShopSlot {
+            def: DefId::new("caster"),
+            frozen: false,
+        }];
+        run.buy(&roster, 0).unwrap();
+        assert_eq!(
+            run.board.get(0).unwrap().attack,
+            6,
+            "Battlecry fired the moment buying placed it on the board"
+        );
+    }
+
+    #[test]
     fn a_fresh_pool_excludes_tokens() {
         let pool = Pool::new(&small_roster());
         assert_eq!(pool.available(&DefId::new("a")), copies_for_tier(1));
@@ -454,7 +553,7 @@ mod tests {
         );
         assert_eq!(run.board.len(), 1);
 
-        run.sell(0).unwrap();
+        run.sell(&roster, 0).unwrap();
         assert_eq!(
             run.pool.available(&offer),
             reserved + 1,

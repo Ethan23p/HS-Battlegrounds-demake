@@ -406,6 +406,14 @@ impl UnitDef {
     }
 }
 
+/// Parse a roster written as a RON sequence of [`UnitDef`]s -- the format
+/// `assets/roster.ron` is written in, so adding or changing a Unit is a file
+/// edit, not a recompile. The one place RON parsing happens; `bg-cli` reads
+/// the file directly, `bg-wasm` hands this the text a browser `fetch`ed.
+pub fn load_roster(ron_text: &str) -> Result<Vec<UnitDef>, ron::error::SpannedError> {
+    ron::from_str(ron_text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -498,5 +506,25 @@ mod tests {
             ability.condition,
             Some(Condition::SubjectHasTribe(Tribe::Murloc))
         );
+    }
+
+    #[test]
+    fn the_real_roster_parses_and_every_ability_references_a_real_unit() {
+        let src = include_str!("../../../assets/roster.ron");
+        let roster = load_roster(src).expect("assets/roster.ron parses");
+        assert!(!roster.is_empty());
+        for def in &roster {
+            for ability in &def.abilities {
+                for effect in &ability.effects {
+                    if let Effect::Summon { unit, .. } | Effect::AddToHand { unit, .. } = effect {
+                        assert!(
+                            roster.iter().any(|d| &d.id == unit),
+                            "{}'s ability references unknown unit {unit}",
+                            def.id
+                        );
+                    }
+                }
+            }
+        }
     }
 }

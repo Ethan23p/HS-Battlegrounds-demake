@@ -58,9 +58,10 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::abilities;
 use crate::party::{Board, Party, SLOTS, Side, Unit};
 use crate::rng::Rng;
-use crate::units::{DefId, Keyword};
+use crate::units::{DefId, Keyword, Trigger, UnitDef};
 
 /// Beats after which an unresolved Action Phase is declared a stalemate.
 ///
@@ -133,6 +134,12 @@ pub enum Event {
         slot: u32,
         name: String,
     },
+    /// A Unit's ability ran -- narration only, same as everything else in
+    /// this log; the resulting state is `boards[i]`, never derived from this.
+    AbilityFired {
+        side: Side,
+        name: String,
+    },
     Ended {
         outcome: Outcome,
         beats: u32,
@@ -190,6 +197,9 @@ impl std::fmt::Display for Event {
                 "  {} {name} returns in slot {slot} with 1 health",
                 side.name()
             ),
+            Event::AbilityFired { side, name } => {
+                write!(f, "  {} {name}'s ability fires", side.name())
+            }
             Event::Ended { outcome, beats } => {
                 write!(f, "== {outcome:?} after {beats} beats ==")
             }
@@ -248,11 +258,37 @@ impl Resolution {
 ///
 /// Deterministic given `rng`'s state: equal Boards and equal Rng draws give
 /// equal Resolutions.
-pub fn resolve(mut board: Board, rng: &mut Rng) -> Resolution {
+pub fn resolve(board: Board, rng: &mut Rng) -> Resolution {
+    resolve_with_roster(board, &[], rng)
+}
+
+/// Resolve an Action Phase to completion, executing each Unit's abilities as
+/// their Trigger is reached. `roster` is where a Unit's `def` is looked up to
+/// find what it can do; a Unit whose `def` isn't in `roster` (or has no
+/// abilities) simply never fires anything, which is what makes [`resolve`]'s
+/// `&[]` a safe default for combat that was never meant to test abilities.
+///
+/// Ability-driven randomness draws from the same `rng` combat targeting
+/// already uses, not a separate `Domain::Effect` substream -- `resolve`'s
+/// signature already fixed `rng` to whatever the caller derived before this
+/// existed, and splitting it would mean threading a `Seed` through instead.
+/// A real seam to revisit if that separation ever matters somewhere `resolve`
+/// is used to test.
+pub fn resolve_with_roster(mut board: Board, roster: &[UnitDef], rng: &mut Rng) -> Resolution {
     let initial_board = board.clone();
     let mut log = Vec::new();
     let mut boards = Vec::new();
     let mut beats = 0u32;
+    let mut scratch_gold = 0u32; // GainGold is Prep Phase only; this sink is discarded.
+
+    abilities::fire_all(
+        &mut board,
+        roster,
+        Trigger::StartOfActionPhase,
+        &mut log,
+        rng,
+        &mut scratch_gold,
+    );
 
     let outcome = loop {
         if let Some(outcome) = decide(&board) {
@@ -264,14 +300,21 @@ pub fn resolve(mut board: Board, rng: &mut Rng) -> Resolution {
         beats += 1;
         log.push(Event::BeatBegan { beat: beats });
 
-        bury_the_dead(&mut board, &mut log);
+        bury_the_dead(&mut board, roster, &mut log, rng, &mut scratch_gold);
         break_spent_shields(&mut board);
         close_ranks(&mut board, &mut log);
         if no_intents_left(&board) {
             renew_intents(&mut board);
         }
         for transaction in declare(&mut board, rng) {
-            resolve_transaction(&mut board, &transaction, &mut log);
+            resolve_transaction(
+                &mut board,
+                roster,
+                &transaction,
+                &mut log,
+                rng,
+                &mut scratch_gold,
+            );
         }
         boards.push(board.clone());
     };
@@ -305,18 +348,35 @@ fn decide(board: &Board) -> Option<Outcome> {
 ///
 /// Order here is Side then Slot and means nothing: these deaths all belong to the
 /// same Beat, and none of them can affect another.
-fn bury_the_dead(board: &mut Board, log: &mut Vec<Event>) {
+fn bury_the_dead(
+    board: &mut Board,
+    roster: &[UnitDef],
+    log: &mut Vec<Event>,
+    rng: &mut Rng,
+    gold: &mut u32,
+) {
     for side in [Side::Player, Side::Opposing] {
         for index in 0..SLOTS {
             if board.side(side).get(index).is_some_and(Unit::is_dying) {
-                bury(board, side, index, log);
+                bury(board, roster, side, index, log, rng, gold);
             }
         }
     }
 }
 
-/// Remove one Unit and log it, returning it in place if it has Reborn to spend.
-fn bury(board: &mut Board, side: Side, index: usize, log: &mut Vec<Event>) {
+/// Remove one Unit and log it, returning it in place if it has Reborn to
+/// spend. Deathrattle fires once it's gone -- there is nothing left on the
+/// Board for its own `Selector::This` to reach -- and AfterFriendlyDeath
+/// broadcasts to whatever's left of its side afterward.
+fn bury(
+    board: &mut Board,
+    roster: &[UnitDef],
+    side: Side,
+    index: usize,
+    log: &mut Vec<Event>,
+    rng: &mut Rng,
+    gold: &mut u32,
+) {
     let unit = board
         .side_mut(side)
         .take(index)
@@ -330,7 +390,7 @@ fn bury(board: &mut Board, side: Side, index: usize, log: &mut Vec<Event>) {
     });
 
     if unit.has(Keyword::Reborn) && !unit.reborn_spent {
-        let mut returned = unit;
+        let mut returned = unit.clone();
         returned.reborn_spent = true;
         returned.keywords.remove(&Keyword::Reborn);
         returned.health = 1;
@@ -342,6 +402,24 @@ fn bury(board: &mut Board, side: Side, index: usize, log: &mut Vec<Event>) {
             slot: slot_no(index),
             name,
         });
+    }
+
+    abilities::fire_deathrattle(board, roster, side, &unit.def, log, rng, gold);
+    if !board.side(side).is_empty() {
+        // Broadcasting against `index` is safe even though it may now hold a
+        // Reborn return: `fire_broadcast` excludes the subject slot, and a
+        // Unit does not hear about its own death.
+        abilities::fire_broadcast(
+            board,
+            roster,
+            side,
+            index,
+            Trigger::AfterFriendlyDeath,
+            0,
+            log,
+            rng,
+            gold,
+        );
     }
 }
 
@@ -473,7 +551,29 @@ fn select_target(rng: &mut Rng, party: &Party) -> Option<usize> {
 ///
 /// Both Units' attack is read before either blow lands, so a Unit's answer is not
 /// weakened by the blow it is answering.
-fn resolve_transaction(board: &mut Board, transaction: &Transaction, log: &mut Vec<Event>) {
+fn resolve_transaction(
+    board: &mut Board,
+    roster: &[UnitDef],
+    transaction: &Transaction,
+    log: &mut Vec<Event>,
+    rng: &mut Rng,
+    gold: &mut u32,
+) {
+    // OnAttack (Rally) fires before the blow's damage is read, so a Unit that
+    // buffs itself on attack hits for the buffed amount, the same as
+    // Battlegrounds' own Rally.
+    abilities::fire_own(
+        board,
+        roster,
+        transaction.by,
+        transaction.attacker,
+        Trigger::OnAttack,
+        0,
+        log,
+        rng,
+        gold,
+    );
+
     let defending = transaction.by.other();
     let (Some(attacker), Some(defender)) = (
         board.side(transaction.by).get(transaction.attacker),
@@ -492,11 +592,14 @@ fn resolve_transaction(board: &mut Board, transaction: &Transaction, log: &mut V
     });
     hit(
         board,
+        roster,
         defending,
         transaction.defender,
         attack,
         attacker_poisons,
         log,
+        rng,
+        gold,
     );
 
     if answer > 0 {
@@ -508,11 +611,14 @@ fn resolve_transaction(board: &mut Board, transaction: &Transaction, log: &mut V
         });
         hit(
             board,
+            roster,
             transaction.by,
             transaction.attacker,
             answer,
             defender_poisons,
             log,
+            rng,
+            gold,
         );
     }
 }
@@ -524,13 +630,17 @@ fn resolve_transaction(board: &mut Board, transaction: &Transaction, log: &mut V
 /// Beat brings and breaks at the top of the next. Otherwise a Unit struck twice in
 /// one Beat would spend its shield on whichever blow the engine reached first,
 /// which would make the walk order of the Board worth something.
+#[allow(clippy::too_many_arguments)]
 fn hit(
     board: &mut Board,
+    roster: &[UnitDef],
     side: Side,
     index: usize,
     damage: i32,
     poisonous: bool,
     log: &mut Vec<Event>,
+    rng: &mut Rng,
+    gold: &mut u32,
 ) {
     let Some(unit) = board.side_mut(side).get_mut(index) else {
         return;
@@ -546,6 +656,20 @@ fn hit(
     unit.health -= damage;
     if poisonous {
         unit.poisoned = true;
+    }
+    let survived = board.side(side).get(index).is_some_and(|u| !u.is_dying());
+    if survived {
+        abilities::fire_own(
+            board,
+            roster,
+            side,
+            index,
+            Trigger::OnSurviveDamage,
+            0,
+            log,
+            rng,
+            gold,
+        );
     }
 }
 
