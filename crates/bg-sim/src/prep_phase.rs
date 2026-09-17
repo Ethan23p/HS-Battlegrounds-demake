@@ -267,11 +267,16 @@ impl RunState {
         Ok(())
     }
 
-    /// Toggle whether an offer survives the next reroll.
-    pub fn toggle_freeze(&mut self, offer: usize) -> Result<(), ShopError> {
-        let slot = self.shop.get_mut(offer).ok_or(ShopError::InvalidOffer)?;
-        slot.frozen = !slot.frozen;
-        Ok(())
+    /// Toggle whether the whole shop survives the next reroll -- one button
+    /// for the whole lineup, the way Battlegrounds itself does it, not a
+    /// per-card choice. Freezing when anything is still unfrozen freezes
+    /// everything; freezing again (once the whole shop is already frozen)
+    /// unfreezes it.
+    pub fn toggle_freeze(&mut self) {
+        let freeze = self.shop.iter().any(|slot| !slot.frozen);
+        for slot in &mut self.shop {
+            slot.frozen = freeze;
+        }
     }
 
     /// Buy an offer onto the first open board Slot.
@@ -496,13 +501,25 @@ mod tests {
         let roster = small_roster();
         let mut run = RunState::new(Seed(3), &roster);
         run.gold = 100;
-        run.toggle_freeze(0).unwrap();
-        let frozen_def = run.shop[0].def.clone();
+        run.toggle_freeze();
+        let frozen_shop = run.shop.clone();
         run.reroll(&roster).unwrap();
         assert_eq!(
-            run.shop[0].def, frozen_def,
-            "the frozen offer survives in place"
+            run.shop.iter().map(|s| &s.def).collect::<Vec<_>>(),
+            frozen_shop.iter().map(|s| &s.def).collect::<Vec<_>>(),
+            "the whole frozen shop survives in place"
         );
+    }
+
+    #[test]
+    fn freezing_again_unfreezes_the_whole_shop() {
+        let roster = small_roster();
+        let mut run = RunState::new(Seed(12), &roster);
+        run.gold = 100;
+        run.toggle_freeze();
+        assert!(run.shop.iter().all(|s| s.frozen));
+        run.toggle_freeze();
+        assert!(run.shop.iter().all(|s| !s.frozen));
     }
 
     #[test]

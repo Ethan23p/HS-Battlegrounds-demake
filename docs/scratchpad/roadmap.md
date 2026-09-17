@@ -109,6 +109,42 @@ gold-per-round ramp, a tapered-by-tier pool size, a 12-Unit hardcoded roster
 (`fixtures::shop_roster`, two per Tavern Tier, keywords only -- no abilities execute yet).
 Real numbers get tuned once the loop can be felt, not designed on paper first.
 
+**Follow-up round, from Ethan actually playing it on his phone:**
+
+- A real coordinate bug, not a design question: on a portrait phone, arrows and the
+  attack "clash" motion were computed from `getBoundingClientRect` (screen space, already
+  rotated by the forced-landscape trick in `style.css`) and then fed into coordinate
+  spaces (the SVG overlay's local space, a card's own `translate()`) that get that same
+  ambient rotation applied a second time by the browser -- net double rotation, which is
+  exactly the diagonal/crossed arrows Ethan's screenshot showed. Fixed by computing
+  positions from the `offsetParent` chain instead (`offsetRelativeTo` in `app.js`), which
+  is layout-space and transform-immune, matching what both the SVG's local space and a
+  card's own pre-ambient-transform space actually need.
+- Freezing is now board-wide, one button (`#freeze` in `.info`, next to Reroll), not a
+  per-card toggle -- `RunState::toggle_freeze` takes no offer index anymore: it freezes
+  every current offer if any is unfrozen, unfreezes all if the whole shop is already
+  frozen. Matches Battlegrounds itself, and Ethan's correction that per-card freezing
+  wasn't the intended shape.
+- The reroll cost readout was showing "3g" while `REROLL_COST` is actually 1 -- caught
+  while touching that line for the freeze button, fixed alongside it.
+- The sell button's real hit target was 14x14px, fine for a mouse but too small for a
+  thumb on a real phone -- likely what Ethan actually hit ("I tried selling something and
+  it didn't seem to work"). Given an invisible `::before` padding out to a ~40x40 hit
+  area without changing the visible glyph or card layout.
+- Board-state healing between rounds (survivors return at full health, deaths are
+  permanent) was already correct from 0.3's `apply_fight_result` fix -- Ethan's message
+  read as confirming the intended design, not reporting a regression, and a fresh
+  Playwright check (buy, fight to a damaged win, continue) confirmed it still holds.
+- Added `scripts/build_web.sh` for the two-step `cargo build -p bg-wasm` +
+  `wasm-bindgen` rebuild -- the repetitive step Ethan asked about.
+
+Ethan also suggested a standing discipline for future changes to this loop: keep a
+scripted Playwright sequence that plays through several mechanics at once (buy, sell,
+freeze, reroll, upgrade, fight, continue across rounds) and actually watch it run before
+committing, rather than trusting unit tests alone for what's fundamentally a feel-driven
+UI. Not yet built as a committed script -- the ad hoc Playwright checks in this round
+served that purpose but weren't kept. Worth doing properly next time this area changes.
+
 ### 0.4 — Data-driven content, for real
 The WASM binding already exists (0.2), so this is narrower than it once was: Units/
 abilities move from `fixtures::shop_roster`'s hardcoded roster to RON assets the page

@@ -141,6 +141,7 @@ const runOverTextEl = document.getElementById("run-over-text");
 const shopMessageEl = document.getElementById("shop-message");
 const fightBtn = document.getElementById("fight");
 const rerollBtn = document.getElementById("reroll");
+const freezeBtn = document.getElementById("freeze");
 const upgradeTavernBtn = document.getElementById("upgrade-tavern");
 const upgradeCostEl = document.getElementById("upgrade-cost");
 const continueBtn = document.getElementById("continue");
@@ -200,11 +201,7 @@ function renderUnit(side, slot, unit, opts = {}) {
   const badges = unit.keywords
     .map((k) => `<span class="badge ${k}" title="${k}">${KEYWORD_BADGE[k] ?? "?"}</span>`)
     .join("");
-  const corner = opts.offer
-    ? `<button class="freeze-btn" data-action="freeze" title="Freeze">❄</button>`
-    : opts.sellable
-      ? `<button class="sell-btn" data-action="sell" title="Sell">×</button>`
-      : "";
+  const corner = opts.sellable ? `<button class="sell-btn" data-action="sell" title="Sell">×</button>` : "";
   content.innerHTML = `
     <div class="badges">${badges}</div>
     <div class="name">${unit.name}</div>
@@ -273,10 +270,19 @@ function clearOverlay() {
   // its CSS box -- so without this, content past that default height was
   // silently cut off even though it was positioned correctly. Set fresh each
   // time rather than once, so a resize between reveals can't leave it stale.
-  const b = battlefieldEl.getBoundingClientRect();
-  arrowSvgEl.setAttribute("width", b.width);
-  arrowSvgEl.setAttribute("height", b.height);
-  arrowSvgEl.setAttribute("viewBox", `0 0 ${b.width} ${b.height}`);
+  //
+  // `offsetWidth`/`offsetHeight` (layout size), not `getBoundingClientRect`
+  // (screen size) -- the forced-landscape media query (see style.css)
+  // rotates `.stage` 90deg on a portrait phone, and `getBoundingClientRect`
+  // reports the *post-rotation* box. This SVG is a normal descendant of that
+  // rotated `.stage`, so anything drawn inside it in local coordinates gets
+  // that same rotation applied once by the browser -- sizing/positioning it
+  // from already-rotated numbers rotated it a second time.
+  const w = battlefieldEl.offsetWidth;
+  const h = battlefieldEl.offsetHeight;
+  arrowSvgEl.setAttribute("width", w);
+  arrowSvgEl.setAttribute("height", h);
+  arrowSvgEl.setAttribute("viewBox", `0 0 ${w} ${h}`);
 
   arrowLinesEl.innerHTML = "";
   // Damage labels live on the card they describe (placeDamageLabel), not in
@@ -284,10 +290,27 @@ function clearOverlay() {
   for (const el of document.querySelectorAll(".unit .dmg-label")) el.remove();
 }
 
+// Walks the `offsetParent` chain rather than `getBoundingClientRect`, so the
+// result is in local, pre-rotation layout coordinates -- see clearOverlay's
+// comment. Both the arrow overlay (an SVG whose local space gets the same
+// ambient rotation applied once by the browser) and a card's own clash
+// transform (a `translate()` composed *underneath* that same ambient
+// rotation) need coordinates in this space, not screen space, or the
+// rotation ends up applied twice.
+function offsetRelativeTo(el, ancestor) {
+  let x = 0;
+  let y = 0;
+  for (let node = el; node && node !== ancestor; node = node.offsetParent) {
+    x += node.offsetLeft;
+    y += node.offsetTop;
+  }
+  return { x, y };
+}
+
 function centerOf(side, slot) {
-  const r = slotEl(side, slot).getBoundingClientRect();
-  const b = battlefieldEl.getBoundingClientRect();
-  return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2 };
+  const el = slotEl(side, slot);
+  const { x, y } = offsetRelativeTo(el, battlefieldEl);
+  return { x: x + el.offsetWidth / 2, y: y + el.offsetHeight / 2 };
 }
 
 function drawArrow(attackerSide, attackerSlot, targetSide, targetSlot, absorbed) {
@@ -562,6 +585,7 @@ class Shop {
       slotEl("Player", i).addEventListener("pointerdown", (e) => this.onPointerDown(e, i));
     }
     rerollBtn.addEventListener("click", () => this.reroll());
+    freezeBtn.addEventListener("click", () => this.toggleFreeze());
     upgradeTavernBtn.addEventListener("click", () => this.upgradeTavern());
     fightBtn.addEventListener("click", () => this.fight());
   }
@@ -588,6 +612,9 @@ class Shop {
     upgradeCostEl.textContent = atMaxTier ? "max" : `${upgradeCost}g`;
     upgradeTavernBtn.disabled = atMaxTier || this.run.gold < upgradeCost;
     rerollBtn.disabled = this.run.gold < 1;
+    const shopFrozen = this.run.shop.length > 0 && this.run.shop.every((s) => s.frozen);
+    freezeBtn.classList.toggle("active", shopFrozen);
+    freezeBtn.disabled = this.run.shop.length === 0;
 
     for (let i = 0; i < SLOTS; i++) {
       const offer = this.run.shop[i];
@@ -635,8 +662,8 @@ class Shop {
     this.call(shopReroll);
   }
 
-  toggleFreeze(offer) {
-    this.call(shopToggleFreeze, offer);
+  toggleFreeze() {
+    this.call(shopToggleFreeze);
   }
 
   upgradeTavern() {
@@ -644,10 +671,6 @@ class Shop {
   }
 
   onOfferClick(e, i) {
-    if (e.target.closest(".freeze-btn")) {
-      this.toggleFreeze(i);
-      return;
-    }
     if (this.run.shop[i]) this.buy(i);
   }
 

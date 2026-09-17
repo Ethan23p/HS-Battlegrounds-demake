@@ -500,26 +500,16 @@ button.transport .cost {
 .unit.offer:hover { border-color: var(--gold); }
 .unit.offer.unaffordable { opacity: 0.5; cursor: default; }
 
-.freeze-btn {
-  all: unset;
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  cursor: pointer;
-  background: var(--line);
-  color: var(--ink-faint);
-}
-
+/* The whole shop is frozen or not -- one board-wide state (see Shop.render
+   in app.js), not a per-card choice. */
 .unit.frozen { border-color: var(--indigo); }
-.unit.frozen .freeze-btn { background: var(--indigo); color: var(--indigo-ink); }
 
+button.transport.active { border-color: var(--indigo); color: var(--indigo); background: var(--panel-2); }
+
+/* A real hit target, not the visible 14px glyph -- the glyph sits inside a
+   larger invisible padding so a thumb on a real phone can actually land it;
+   `::before` (rather than sizing the button itself) so the card layout the
+   glyph is positioned against doesn't change. */
 .sell-btn {
   all: unset;
   position: absolute;
@@ -537,6 +527,12 @@ button.transport .cost {
   background: var(--panel);
   border: 1px solid var(--crimson);
   color: var(--crimson);
+}
+
+.sell-btn::before {
+  content: "";
+  position: absolute;
+  inset: -13px;
 }
 
 .sell-btn:hover { background: var(--crimson); color: var(--panel); }

@@ -46,9 +46,9 @@ export function shop_roster_json(): string;
 export function shop_sell(run_json_in: string, slot: number): string;
 
 /**
- * Toggle whether shop offer `offer` survives the next reroll.
+ * Toggle whether the whole shop survives the next reroll.
  */
-export function shop_toggle_freeze(run_json_in: string, offer: number): string;
+export function shop_toggle_freeze(run_json_in: string): string;
 
 /**
  * Spend gold to raise the Tavern Tier, widening what the shop can offer.
@@ -85,7 +85,7 @@ export interface InitOutput {
     readonly shop_reroll: (a: number, b: number) => [number, number, number, number];
     readonly shop_roster_json: () => [number, number];
     readonly shop_sell: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly shop_toggle_freeze: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly shop_toggle_freeze: (a: number, b: number) => [number, number, number, number];
     readonly shop_upgrade_tavern: (a: number, b: number) => [number, number, number, number];
     readonly showcase_board_json: () => [number, number];
     readonly start_new_round: (a: number, b: number) => [number, number, number, number];

@@ -94,12 +94,11 @@ pub fn shop_reroll(run_json_in: &str) -> Result<String, JsError> {
     run_json(&run)
 }
 
-/// Toggle whether shop offer `offer` survives the next reroll.
+/// Toggle whether the whole shop survives the next reroll.
 #[wasm_bindgen]
-pub fn shop_toggle_freeze(run_json_in: &str, offer: usize) -> Result<String, JsError> {
+pub fn shop_toggle_freeze(run_json_in: &str) -> Result<String, JsError> {
     let mut run = parse_run(run_json_in)?;
-    run.toggle_freeze(offer)
-        .map_err(|e| JsError::new(&e.to_string()))?;
+    run.toggle_freeze();
     run_json(&run)
 }
 

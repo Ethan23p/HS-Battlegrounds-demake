@@ -189,18 +189,17 @@ export function shop_sell(run_json_in, slot) {
 }
 
 /**
- * Toggle whether shop offer `offer` survives the next reroll.
+ * Toggle whether the whole shop survives the next reroll.
  * @param {string} run_json_in
- * @param {number} offer
  * @returns {string}
  */
-export function shop_toggle_freeze(run_json_in, offer) {
+export function shop_toggle_freeze(run_json_in) {
     let deferred3_0;
     let deferred3_1;
     try {
         const ptr0 = passStringToWasm0(run_json_in, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.shop_toggle_freeze(ptr0, len0, offer);
+        const ret = wasm.shop_toggle_freeze(ptr0, len0);
         var ptr2 = ret[0];
         var len2 = ret[1];
         if (ret[3]) {
