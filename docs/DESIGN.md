@@ -217,3 +217,25 @@ during 0.3 planning.*
 
 > For "damage on loss" this depends on the broad meta game which we land on, which I'm
 > not sure of, so I'd say runs are best of 3
+
+#### Abilities are authored as data against a fixed vocabulary, extended on request -- not a general scripting layer
+
+*0.4 planning asked how far to go on ability authoring: `units::Trigger`/`Condition`/
+`Selector`/`Effect` already exist as an unexecuted, declarative vocabulary (Battlecry,
+Deathrattle, Buff, Damage, Summon, and so on), but nothing runs it yet. The real fork was
+whether to build the engine for that fixed vocabulary (extending it by hand as new
+abilities need something it can't yet express) or to embed a general scripting layer
+(e.g. Rhai) so any mechanic is expressible without an engine change. Ethan's answer:
+build the engine for the fixed vocabulary, and treat Claude itself -- being asked to add
+the one variant a new ability needs -- as the extensibility mechanism, rather than
+building that flexibility into the runtime.*
+([0011](transcripts/0011-mobile-playtest-and-ability-authoring.md))
+
+> Yeah. See, sounds good. option c, that is. And part of the expectations that we can
+> build upon is that, um, a little bit like a scripting layer is my access to you. So
+> hypothetically, I can, uh, simply ask you to implement this or that, and then Voila. A
+> bit later, I have that mechanic. So keep that in mind that maybe we are... we're not
+> designing for, like, handwritten Abilities, nor are we preparing for necessarily a
+> human compatible scripting, but we definitely want that flexibility for anything to be
+> possible without breaking stuff. But I think, generally, you you build in a nice,
+> maintainable way.
