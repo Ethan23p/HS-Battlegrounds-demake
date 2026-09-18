@@ -418,14 +418,14 @@ impl RunState {
     /// Stalemate needs `action_phase::MAX_BEATS`) that awarding either side a
     /// win for it would be a surprising rule with no rationale behind it.
     ///
-    /// `survivors` is the player's side of `Resolution::final_board` -- the
-    /// board *does not* carry a fight's damage or fight-only state (Divine
-    /// Shield spent, Poisonous marks, Intents) into the next round, the way
-    /// Battlegrounds itself doesn't; only death is permanent. Rebuilding
-    /// each survivor fresh from its Definition is exactly that reset -- the
-    /// same one a newly bought Unit already gets, since nothing in this
-    /// engine yet grants a Unit a permanent change beyond its Definition.
-    pub fn apply_fight_result(&mut self, roster: &[UnitDef], outcome: Outcome, survivors: &Party) {
+    /// A fight's own changes to the party aren't permanent unless something
+    /// specifically makes them so -- and nothing in this engine currently
+    /// does, so the next round's board is rebuilt entirely from the party
+    /// that *entered* the fight (`self.board`, untouched by it), not from
+    /// the fight's own outcome: everyone who fought comes back fresh from
+    /// its Definition, the same reset a newly bought Unit already gets,
+    /// dead or not.
+    pub fn apply_fight_result(&mut self, roster: &[UnitDef], outcome: Outcome) {
         match outcome {
             Outcome::PlayerWins => self.wins += 1,
             Outcome::OpposingWins => self.losses += 1,
@@ -433,7 +433,7 @@ impl RunState {
         }
 
         let mut board = Party::new();
-        for (i, unit) in survivors.iter() {
+        for (i, unit) in self.board.iter() {
             if let Some(def) = def_by_id(roster, &unit.def) {
                 board.put(i, Unit::new(def));
             }
@@ -664,9 +664,9 @@ mod tests {
         let roster = small_roster();
         let mut run = RunState::new(Seed(7), &roster);
         assert_eq!(run.run_outcome(), None);
-        run.apply_fight_result(&roster, Outcome::PlayerWins, &Party::new());
+        run.apply_fight_result(&roster, Outcome::PlayerWins);
         assert_eq!(run.run_outcome(), None);
-        run.apply_fight_result(&roster, Outcome::PlayerWins, &Party::new());
+        run.apply_fight_result(&roster, Outcome::PlayerWins);
         assert_eq!(run.run_outcome(), Some(RunOutcome::PlayerWinsRun));
     }
 
@@ -674,8 +674,8 @@ mod tests {
     fn two_losses_ends_the_run_the_other_way() {
         let roster = small_roster();
         let mut run = RunState::new(Seed(8), &roster);
-        run.apply_fight_result(&roster, Outcome::OpposingWins, &Party::new());
-        run.apply_fight_result(&roster, Outcome::OpposingWins, &Party::new());
+        run.apply_fight_result(&roster, Outcome::OpposingWins);
+        run.apply_fight_result(&roster, Outcome::OpposingWins);
         assert_eq!(run.run_outcome(), Some(RunOutcome::PlayerLosesRun));
     }
 
@@ -683,13 +683,13 @@ mod tests {
     fn a_draw_or_stalemate_scores_neither_side() {
         let roster = small_roster();
         let mut run = RunState::new(Seed(9), &roster);
-        run.apply_fight_result(&roster, Outcome::Draw, &Party::new());
-        run.apply_fight_result(&roster, Outcome::Stalemate, &Party::new());
+        run.apply_fight_result(&roster, Outcome::Draw);
+        run.apply_fight_result(&roster, Outcome::Stalemate);
         assert_eq!((run.wins, run.losses), (0, 0));
     }
 
     #[test]
-    fn a_survivor_returns_at_full_health_a_casualty_does_not_return_at_all() {
+    fn a_fights_casualties_and_damage_are_not_permanent() {
         let roster = small_roster();
         let mut run = RunState::new(Seed(11), &roster);
         run.gold = 100;
@@ -706,22 +706,23 @@ mod tests {
         run.buy(&roster, 0).unwrap(); // "a" into slot 0
         run.buy(&roster, 0).unwrap(); // "b" into slot 1 ("a"'s offer is gone, "b" is now offer 0)
 
-        // Simulate a fight where "a" survived damaged and "b" died: only "a"
-        // appears in the survivors Party, standing in the slot it fought in.
-        let mut damaged_a = Unit::new(def_by_id(&roster, &DefId::new("a")).unwrap());
-        damaged_a.health = 0; // took lethal damage but the engine still reports it as a survivor here
-        let mut survivors = Party::new();
-        survivors.put(0, damaged_a);
+        // Nothing about the fight itself matters here -- only what the party
+        // looked like going in. "a" damaged and "b" dead is exactly the kind
+        // of change combat makes that isn't permanent unless something
+        // specifies otherwise, and nothing here does.
+        run.apply_fight_result(&roster, Outcome::PlayerWins);
 
-        run.apply_fight_result(&roster, Outcome::PlayerWins, &survivors);
-
-        assert_eq!(run.board.len(), 1, "the casualty (b) does not return");
-        let revived = run.board.get(0).unwrap();
-        assert_eq!(revived.def, DefId::new("a"));
         assert_eq!(
-            revived.health, revived.max_health,
-            "damage does not carry into the next round"
+            run.board.len(),
+            2,
+            "a fight's casualty isn't permanent -- both return"
         );
+        for (_, unit) in run.board.iter() {
+            assert_eq!(
+                unit.health, unit.max_health,
+                "damage does not carry into the next round"
+            );
+        }
     }
 
     #[test]

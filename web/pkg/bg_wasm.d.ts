@@ -2,9 +2,11 @@
 /* eslint-disable */
 
 /**
- * Record a fight's `Resolution` against the run's best-of-3 score, and sync
- * the board with what the fight actually left standing -- damage and
- * fight-only state don't carry into the next round, but death does.
+ * Record a fight's `Resolution` against the run's best-of-3 score. The
+ * board is untouched by this -- a fight's own changes (damage, a casualty)
+ * aren't permanent unless something specifies otherwise, and nothing does
+ * yet, so the party that entered the fight is exactly the one the next
+ * round starts from.
  */
 export function apply_fight_result(roster_json: string, run_json_in: string, resolution_json: string): string;
 

@@ -239,3 +239,22 @@ building that flexibility into the runtime.*
 > human compatible scripting, but we definitely want that flexibility for anything to be
 > possible without breaking stuff. But I think, generally, you you build in a nice,
 > maintainable way.
+
+#### A fight's own changes to the party aren't permanent unless something specifies otherwise
+
+*A playtest bug report: units that died in a fight weren't returning on the next round.
+Claude's first fix attempt assumed real Hearthstone Battlegrounds makes death permanent
+and treated a Deathrattle's Summon as an exception that should persist; Ethan corrected
+both -- this is not a departure from Battlegrounds, and nothing in this engine currently
+"specifies" any change as permanent, Deathrattle summons included.*
+([0012](transcripts/0012-a-fights-changes-are-not-permanent.md))
+
+> For clarification, the behavior I stated is how Battlegrounds works. In Battlegrounds
+> the changes to the party within an action phase aren't permanent unless specified so.
+
+> I noticed you said that the implementation matches Battlegrounds, but I'm asking for
+> different behavior; and you said that units summoned by deathrattle should persist to
+> the next round; neither are true/accurate. You're not implementing the mechanic as I
+> said, which will just result in more work later on. I mean it precisely: In
+> Battlegrounds the changes to the party within an action phase aren't permanent unless
+> specified so.

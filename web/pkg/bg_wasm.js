@@ -1,9 +1,11 @@
 /* @ts-self-types="./bg_wasm.d.ts" */
 
 /**
- * Record a fight's `Resolution` against the run's best-of-3 score, and sync
- * the board with what the fight actually left standing -- damage and
- * fight-only state don't carry into the next round, but death does.
+ * Record a fight's `Resolution` against the run's best-of-3 score. The
+ * board is untouched by this -- a fight's own changes (damage, a casualty)
+ * aren't permanent unless something specifies otherwise, and nothing does
+ * yet, so the party that entered the fight is exactly the one the next
+ * round starts from.
  * @param {string} roster_json
  * @param {string} run_json_in
  * @param {string} resolution_json

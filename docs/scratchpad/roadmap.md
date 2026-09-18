@@ -218,6 +218,18 @@ spirit as 0.3's costs. `fixtures::showcase_board` (a separate, small hardcoded f
 for `bg-cli`/`showcase_board_json`) is untouched -- it was never the shop roster and
 isn't part of what 0.4 moved to data.
 
+**Follow-up, from Ethan playing it again:** a casualty from a fight was staying dead into
+the next round -- `RunState::apply_fight_result` was rebuilding the next round's board
+from the fight's own `survivors`, so anything that died in the Action Phase was gone for
+good. That's not right: a fight's own changes (damage, a casualty) aren't permanent unless
+something specifically makes them so, and nothing in this engine does yet, so
+`apply_fight_result` now rebuilds the board entirely from the party that *entered* the
+fight (`self.board`, which the fight never touches) -- everyone comes back healed,
+dead or not. Dropped the now-unused `survivors: &Party` parameter rather than leave it
+plumbed through and ignored. Verified with a direct `bg-wasm` call: two Units bought,
+an opposing side built strong enough to wipe the board entirely, `apply_fight_result`
+still returns both for the next round at full health.
+
 ### 0.5 — Polish, VFX, juice
 Deliberately last: juice on rules that might still change is wasted work. The rendering
 pass finished before 0.3 (arrows, damage numbers, clash motion, proportional layout)

@@ -148,9 +148,11 @@ pub fn end_turn(roster_json: &str, run_json_in: &str) -> Result<String, JsError>
         .map_err(|e| JsError::new(&format!("an EndTurnResult always serializes: {e}")))
 }
 
-/// Record a fight's `Resolution` against the run's best-of-3 score, and sync
-/// the board with what the fight actually left standing -- damage and
-/// fight-only state don't carry into the next round, but death does.
+/// Record a fight's `Resolution` against the run's best-of-3 score. The
+/// board is untouched by this -- a fight's own changes (damage, a casualty)
+/// aren't permanent unless something specifies otherwise, and nothing does
+/// yet, so the party that entered the fight is exactly the one the next
+/// round starts from.
 #[wasm_bindgen]
 pub fn apply_fight_result(
     roster_json: &str,
@@ -161,7 +163,7 @@ pub fn apply_fight_result(
     let mut run = parse_run(run_json_in)?;
     let resolution: Resolution = serde_json::from_str(resolution_json)
         .map_err(|e| JsError::new(&format!("bad Resolution: {e}")))?;
-    run.apply_fight_result(&roster, resolution.outcome, &resolution.final_board.player);
+    run.apply_fight_result(&roster, resolution.outcome);
     run_json(&run)
 }
 
