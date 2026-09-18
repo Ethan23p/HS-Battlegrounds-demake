@@ -258,3 +258,65 @@ both -- this is not a departure from Battlegrounds, and nothing in this engine c
 > said, which will just result in more work later on. I mean it precisely: In
 > Battlegrounds the changes to the party within an action phase aren't permanent unless
 > specified so.
+
+#### Project vocabulary: Entity, Attribute, Trait, Passive, Trigger, Summon, Beat, Unit, Card, Intent
+
+*Ethan laid out the project's own vocabulary in one pass, several terms replacing
+Battlegrounds' own usage (Tribe -> Attribute, Keyword and Ability -> Trait, Token ->
+Summon), others formalizing terms the code already used (Beat, Unit, Intent). Two points
+needed a follow-up clarification, recorded here since the first pass over both was wrong:
+whether "Passive" and a Trait tied to a Trigger are the only two shapes a Trait can take
+(no -- a deliberately loose line, since something like a "dormant" Trait may not fit
+either later), and what a persistent vs. temporary Summon distinguishes (not the
+"specified permanent change" question the fight-revival fix just settled -- a persistent
+Summon is one made during the Prep Phase, a temporary one during the Action Phase, and
+the distinction isn't consequential yet).*
+([0013](transcripts/0013-project-vocabulary.md))
+
+> Entity: a distinct thing with an identity.
+>
+> Attribute: A static property of something. Use in place of 'tribe' in BG. More flexible
+> than 'tribe' in Battlegrounds. (In ways that aren't consequential thus far)
+>
+> Trait: Any additional **behavior** beyond plain/vanilla behaviors. Use instead of
+> keywords from BG. Use instead of abilities.
+>
+> Passive: A persistent behavior or persistent modification of a behavior.
+>
+> Trigger: A shared reference for 'point at which an effect comes into play.' Use instead
+> of keyword as used in BG. Often prefixed by "on", such as "On death" or "on end of
+> turn".
+>
+> Summon(persistent/temporary): A title for a unit which was summoned. Use instead of
+> 'token' as used in BG.
+>
+> Pre-existing, worth formalizing:
+>
+> Beat: A single step in time. Best thought of in the context of a simulation; what
+> happens within a beat is simultaneous; a beat has unbound capacity but if an action is
+> dependent upon another thing, that action can't happen until the beat after the thing
+> first came into play. Resolves ambiguity around synchronous events or transactions.
+>
+> Unit: an embodied entity. Visually represented by a card.
+>
+> Card: Visual representation of a unit. Often used interchangeably with unit. Use
+> instead of 'troop' from BG.
+>
+> Intent: a general expression of intention by a given entity. Typically acted upon and
+> exhausted during the next-most beat (dependent upon location), and non-cumulative.
+
+> Trait, passive, trigger - Not quite, my original wording is the correct framing, I
+> think. Passive traits is correct, then I don't think it'd be correct to say "triggered
+> traits" but "traits with a trigger". It's just a semantic line in the sand for now -
+> but I suspect it will be significant eventually due to unexpected cases like 'dormant
+> traits' or something.
+>
+> summon - no, not my meaning. BG doesn't have the persistent/temporary distinction, but
+> I think it could turn out to be useful so that's why I include it in the vocabulary. A
+> persistent summon is like one that happens in the prep phase, a temporary summon is
+> one that happens in the action phase, usually as part of an effect. It's not really
+> consequential the majority of the time.
+>
+> How you address them in code is up to you, just try not to let implementation block my
+> statements because I have a very clear mental model - I'm usually not suggesting
+> anything legitimately logically inconsistent.
