@@ -160,13 +160,16 @@ body {
   position: absolute;
   top: 1ch;
   right: 1ch;
-  width: 33vw;
-  min-width: 18ch;
-  max-height: calc(100dvh - 2ch);
+  width: 30vw;
+  min-width: 17ch;
+  /* Room for the hand tray anchored below it (see #hand-rank) -- both are
+     independently anchored, but a hand card tall enough to read still has
+     to not sit under this panel's own scroll area. */
+  max-height: calc(100dvh - 2ch - 12vh - 3ch);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 /* The recurring one: a flex column's items default to min-width: auto on
@@ -366,10 +369,31 @@ button.transport .cost {
 #hand-rank .rank-label { color: var(--ink-dim); }
 #hand-rank .dot { background: var(--ink-dim); }
 
-/* `.rank` sets `display: flex` unconditionally, which otherwise beats the UA
-   stylesheet's `[hidden] { display: none }` at equal specificity -- same fix
-   as `.controls[hidden]` above. */
+/* A small floating tray, not another rank in the playfield's own flex
+   column -- anchored bottom-right on its own, independent of both the
+   playfield and .info (which leaves it room, see .info above), so it never
+   pushes the board around just by being on screen. `.rank` sets
+   `display: flex` unconditionally, which otherwise beats the UA
+   stylesheet's `[hidden] { display: none }` at equal specificity -- same
+   fix as `.controls[hidden]` above. */
+#hand-rank {
+  position: absolute;
+  right: 1ch;
+  bottom: 1ch;
+  width: 30vw;
+  min-width: 17ch;
+  gap: 4px;
+}
 #hand-rank[hidden] { display: none; }
+#hand-rank .row { gap: 4px; }
+
+/* Half the height a board/shop card renders at (16.6667vh) -- a tray card
+   only needs to be legible enough to drag, not to read in detail; it's
+   about to be played onto the board where it renders full-size anyway. */
+#hand-rank .unit {
+  height: 9vh;
+  min-width: 4ch;
+}
 
 /* The hand's drop target for selling a board Unit -- a fixed-size tile in
    the hand rank's own label row, not a per-card button, since selling is a

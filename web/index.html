@@ -23,14 +23,6 @@
       <div class="row" id="player-row"></div>
     </div>
 
-    <div class="rank" id="hand-rank" hidden>
-      <div class="rank-label">
-        <span class="dot"></span>Hand
-        <div class="sell-zone" id="sell-zone">Drag here to sell</div>
-      </div>
-      <div class="row" id="hand-row"></div>
-    </div>
-
     <svg class="overlay arrows" aria-hidden="true">
       <defs>
         <marker id="arrow-player" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -113,6 +105,18 @@
       <div class="lines" id="log"></div>
     </section>
   </aside>
+
+  <!-- A small floating tray, not another rank in the playfield's own column
+       -- a full-size rank there pushed the board down every time it
+       appeared. Anchored bottom-right, independent of both the playfield
+       and .info, sized down (see #hand-rank in style.css). -->
+  <div class="rank" id="hand-rank" hidden>
+    <div class="rank-label">
+      <span class="dot"></span>Hand
+      <div class="sell-zone" id="sell-zone">Sell</div>
+    </div>
+    <div class="row" id="hand-row"></div>
+  </div>
 </div>
 
 <script type="module" src="app.js"></script>

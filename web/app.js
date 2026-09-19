@@ -183,6 +183,39 @@ function pointIn(el, x, y) {
   return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 
+const stageEl = document.querySelector(".stage");
+
+// A dragged card is moved by setting a CSS `transform` on it directly, and
+// that transform is painted in the card's own *local* (pre-rotation)
+// coordinate space -- the same space `offsetLeft`/`offsetTop` use, not the
+// screen space `getBoundingClientRect`/pointer events report. Normally
+// those two spaces are the same thing, but the forced-landscape rule above
+// rotates `.stage` 90deg on a portrait phone (see clearOverlay's comment),
+// so a translate computed from screen-space pointer coordinates ends up
+// rotated a second time -- the card visibly drags sideways relative to the
+// finger. `toLocalPoint` maps a screen-space point back through `.stage`'s
+// own transform (inverted) so drag math can work in local space throughout,
+// exactly like the clash-vector overlay already has to.
+function toLocalPoint(clientX, clientY) {
+  const t = getComputedStyle(stageEl).transform;
+  if (!t || t === "none") return { x: clientX, y: clientY };
+  const p = new DOMMatrix(t).inverse().transformPoint(new DOMPoint(clientX, clientY));
+  return { x: p.x, y: p.y };
+}
+
+// An element's position in that same local space -- walking `offsetParent`
+// (like `offsetRelativeTo` above) rather than `getBoundingClientRect`,
+// which would report the post-rotation screen position instead.
+function localRect(el) {
+  let x = 0;
+  let y = 0;
+  for (let node = el; node; node = node.offsetParent) {
+    x += node.offsetLeft;
+    y += node.offsetTop;
+  }
+  return { left: x, top: y, width: el.offsetWidth, height: el.offsetHeight };
+}
+
 // The badges/name/stats markup every card shows, board Unit or shop/hand
 // offer alike -- shared so a hand card (built fresh each render, not one of
 // the fixed Player/Opposing slots below) renders identically to a board one.
@@ -731,14 +764,19 @@ class Shop {
     if (kind === "hand" && !this.run.hand[index]) return;
     const el = kind === "shop" ? slotEl("Opposing", index) : kind === "board" ? slotEl("Player", index) : e.currentTarget;
     el.setPointerCapture(e.pointerId);
-    const rect = el.getBoundingClientRect();
+    // Local space throughout (see toLocalPoint/localRect above) -- the
+    // translate this drag sets on `el` is composed underneath `.stage`'s own
+    // rotation, so computing it from screen-space coordinates would rotate
+    // the drag a second time on a portrait phone.
+    const rect = localRect(el);
+    const grab = toLocalPoint(e.clientX, e.clientY);
     this.drag = {
       kind,
       pointerId: e.pointerId,
       fromIndex: index,
       el,
-      grabX: e.clientX - rect.left,
-      grabY: e.clientY - rect.top,
+      grabX: grab.x - rect.left,
+      grabY: grab.y - rect.top,
       originLeft: rect.left,
       originTop: rect.top,
     };
@@ -755,9 +793,14 @@ class Shop {
 
   onPointerMove(e) {
     if (!this.drag) return;
-    const dx = e.clientX - this.drag.grabX - this.drag.originLeft;
-    const dy = e.clientY - this.drag.grabY - this.drag.originTop;
+    const local = toLocalPoint(e.clientX, e.clientY);
+    const dx = local.x - this.drag.grabX - this.drag.originLeft;
+    const dy = local.y - this.drag.grabY - this.drag.originTop;
     this.drag.el.style.transform = `translate(${dx}px, ${dy}px)`;
+    // Drop-target hit testing stays in screen space -- pointIn compares
+    // against getBoundingClientRect, which (unlike offsetLeft/Top) already
+    // reports each target's actual post-rotation position, matching the
+    // pointer's own (equally post-rotation) clientX/Y.
     this.highlightDrop(e.clientX, e.clientY);
   }
 
