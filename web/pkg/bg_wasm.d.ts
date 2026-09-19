@@ -35,9 +35,15 @@ export function parse_roster(ron_text: string): string;
 export function resolve(roster_json: string, board_json: string, seed: bigint): string;
 
 /**
- * Buy shop offer `offer` (0-based) onto the first open board Slot.
+ * Buy shop offer `offer` (0-based) into hand.
  */
 export function shop_buy(roster_json: string, run_json_in: string, offer: number): string;
+
+/**
+ * Play the hand Unit at `hand_index` (0-based) onto the first open board
+ * Slot.
+ */
+export function shop_play(roster_json: string, run_json_in: string, hand_index: number): string;
 
 /**
  * Spend gold to clear and redraw every unfrozen offer.
@@ -88,6 +94,7 @@ export interface InitOutput {
     readonly parse_roster: (a: number, b: number) => [number, number, number, number];
     readonly resolve: (a: number, b: number, c: number, d: number, e: bigint) => [number, number, number, number];
     readonly shop_buy: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly shop_play: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly shop_reroll: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly shop_sell: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly shop_toggle_freeze: (a: number, b: number) => [number, number, number, number];

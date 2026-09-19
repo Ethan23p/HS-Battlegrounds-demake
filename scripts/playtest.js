@@ -32,6 +32,7 @@ function state(page) {
     tier: document.getElementById("tier-value").textContent,
     record: document.getElementById("record-value").textContent,
     board: [...document.querySelectorAll("#player-row .unit:not(.empty) .name")].map((n) => n.textContent),
+    hand: [...document.querySelectorAll("#hand-row .unit .name")].map((n) => n.textContent),
     shop: [...document.querySelectorAll("#opposing-row .unit:not(.empty) .name")].map((n) => n.textContent),
     shopVisible: !document.getElementById("shop-controls").hidden,
     runOverVisible: !document.getElementById("run-over-controls").hidden,
@@ -41,6 +42,18 @@ function state(page) {
 
 async function shot(page, name) {
   await page.screenshot({ path: path.join(OUT, `${name}.png`) });
+}
+
+// Every shop/hand/board action is a drag now -- pick up a locator's card,
+// move over a target locator's center, release. Used for buy (shop->hand),
+// play (hand->board) and sell (board->sell zone) alike.
+async function dragOnto(page, fromLocator, toLocator) {
+  const from = await fromLocator.boundingBox();
+  const to = await toLocator.boundingBox();
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 });
+  await page.mouse.up();
 }
 
 async function main() {
@@ -53,17 +66,25 @@ async function main() {
   await shot(page, "01-boot");
   console.log("boot:", await state(page));
 
-  // Buy whatever's affordable this round.
+  // Buy whatever's affordable this round -- drag a shop offer onto the hand.
   for (let i = 0; i < 3; i++) {
     const s = await state(page);
-    if (s.gold < 3 || s.board.length >= 6) break;
+    if (s.gold < 3 || s.hand.length >= 6) break;
     const offers = await page.locator("#opposing-row .unit:not(.empty)").count();
     if (offers === 0) break;
-    await page.locator("#opposing-row .unit:not(.empty)").first().click();
+    await dragOnto(page, page.locator("#opposing-row .unit:not(.empty)").first(), page.locator("#hand-rank"));
     await page.waitForTimeout(80);
   }
   console.log("after buys:", await state(page));
   await shot(page, "02-bought");
+
+  // Play everything just bought -- drag each hand card onto the board.
+  for (let i = 0; i < 6 && (await state(page)).hand.length > 0; i++) {
+    await dragOnto(page, page.locator("#hand-row .unit").first(), page.locator("#player-rank"));
+    await page.waitForTimeout(80);
+  }
+  console.log("after playing hand:", await state(page));
+  await shot(page, "02b-played");
 
   // Freeze the shop, reroll (should be a no-op on the lineup) if affordable,
   // unfreeze.
@@ -82,9 +103,9 @@ async function main() {
   await page.waitForTimeout(60);
   await shot(page, "03-froze-and-unfroze");
 
-  // Sell the first board unit, if any.
+  // Sell the first board unit, if any -- drag it onto the sell zone.
   if ((await state(page)).board.length > 0) {
-    await page.locator("#player-row .sell-btn").first().click();
+    await dragOnto(page, page.locator("#player-row .unit:not(.empty)").first(), page.locator("#sell-zone"));
     await page.waitForTimeout(80);
     console.log("after sell:", await state(page));
   }
@@ -93,14 +114,7 @@ async function main() {
   // Drag-reorder, if two units are on the board.
   const boardCount = (await state(page)).board.length;
   if (boardCount >= 2) {
-    const a = page.locator("#player-row .unit").nth(0);
-    const b = page.locator("#player-row .unit").nth(1);
-    const ba = await a.boundingBox();
-    const bb = await b.boundingBox();
-    await page.mouse.move(ba.x + ba.width / 2, ba.y + ba.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2, { steps: 8 });
-    await page.mouse.up();
+    await dragOnto(page, page.locator("#player-row .unit").nth(0), page.locator("#player-row .unit").nth(1));
     await page.waitForTimeout(80);
     console.log("after drag-reorder:", (await state(page)).board);
   }

@@ -230,7 +230,62 @@ plumbed through and ignored. Verified with a direct `bg-wasm` call: two Units bo
 an opposing side built strong enough to wipe the board entirely, `apply_fight_result`
 still returns both for the next round at full health.
 
-### 0.5 — Polish, VFX, juice
+### The plan from here: Hand, Triples, Hero Powers
+
+Asked what's still missing versus real Battlegrounds beyond abilities/data (0.4) and the
+fight-revival correction just above. Verified along the way that positional combat
+(leftmost-holds-Intent attack order, `Party::neighbours` for adjacency abilities) already
+matches real Battlegrounds' split of positional attacker / random defender -- not a gap,
+despite looking like one from the outside.
+
+The three real gaps, in build order, each a dependency of the next:
+
+- **0.5 -- A Hand.** Buying currently places a Unit straight onto the board in one step;
+  `Trigger::Battlecry`'s own doc comment ("when played from hand into a Slot") and
+  `Trigger::OnBuy`'s ("when bought into hand") already name a hand that doesn't exist --
+  `buy()` fires both together as a documented workaround. Foundational because the
+  shop/board boundary is threaded through everything downstream (Triples count hand +
+  board copies together in real Battlegrounds).
+- **0.6 -- Triples.** Merge 3 copies of a Unit into one Tier-up copy at roughly double
+  stats. The payoff for the scarce-pool economy (`prep_phase`'s `Pool`) that already
+  exists but currently has nothing rewarding hitting it.
+- **0.7 -- Hero Powers.** Per-run identity -- every run currently plays identically
+  except for RNG and the roster draw. Reuses the existing `abilities.rs` vocabulary
+  (`Effect`/`Selector`/`Condition`) with a new player-invoked trigger, rather than a
+  second system, per the "fixed vocabulary, extended on request" decision from 0.4.
+
+Buffs/debuffs as tracked, expiring state (as opposed to a Buff effect's current permanent
+stat mutation) isn't its own phase -- folded into 0.6 or 0.7 whenever the first real
+consumer (a Triple, a Hero Power) forces the actual representation decision, rather than
+guessed at speculatively now.
+
+([0014](transcripts/0014-hand-triples-hero-powers-plan.md))
+
+#### 0.5 refined: dragging is the only interaction, cards are 1:1.6
+
+Ethan's correction on the first pass of the 0.5 plan: buying, selling, and playing a hand
+Unit should all be the same interaction -- dragging a card from where it is to where it's
+going -- not a mix of clicks and drags. Concretely:
+
+- **Buy**: drag a shop offer onto the hand. Gold isn't charged until the drop actually
+  lands there -- a drag released elsewhere is a no-op, not a partial charge. This falls
+  out for free from how `Shop.call` already works: the engine's `buy()` is one atomic
+  call that isn't made at all unless the drop is valid, so there's no separate "cancel"
+  path to build.
+- **Sell**: drag a board Unit onto a dedicated sell drop-target, replacing the old
+  per-card sell button.
+- **Play**: dragging a hand Unit onto the board is the *only* thing a hand Unit supports
+  -- no click-to-play, no other action available on it.
+- Board-to-board dragging keeps doing what it already does (reorder).
+- Cards go from `1 / 1.16` to `1 / 1.6` (width:height) -- a real card shape everywhere a
+  Unit renders (shop, hand, board, fight viewer), not a shop/hand-only change.
+
+Implementation note (mine, not a mechanic): `play()` places a hand Unit at the first open
+board Slot, same insertion rule `buy()` used to use -- exact final position is then a
+board-to-board drag away, reusing the reorder mechanic already built rather than adding
+slot-targeting to the hand-to-board drop itself.
+
+### 0.8 — Polish, VFX, juice
 Deliberately last: juice on rules that might still change is wasted work. The rendering
 pass finished before 0.3 (arrows, damage numbers, clash motion, proportional layout)
 covers the fight viewer; the shop screen built in 0.3 is plain by comparison (click to

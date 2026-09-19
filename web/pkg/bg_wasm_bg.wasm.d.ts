@@ -6,6 +6,7 @@ export const end_turn: (a: number, b: number, c: number, d: number) => [number, 
 export const parse_roster: (a: number, b: number) => [number, number, number, number];
 export const resolve: (a: number, b: number, c: number, d: number, e: bigint) => [number, number, number, number];
 export const shop_buy: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+export const shop_play: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
 export const shop_reroll: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const shop_sell: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
 export const shop_toggle_freeze: (a: number, b: number) => [number, number, number, number];

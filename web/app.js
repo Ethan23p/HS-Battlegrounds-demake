@@ -124,6 +124,9 @@ function buildBeatSteps(log, boards) {
 const battlefieldEl = document.getElementById("battlefield");
 const rowEl = { Player: document.getElementById("player-row"), Opposing: document.getElementById("opposing-row") };
 const opposingRankLabelEl = document.getElementById("opposing-rank-label");
+const handRankEl = document.getElementById("hand-rank");
+const handRowEl = document.getElementById("hand-row");
+const sellZoneEl = document.getElementById("sell-zone");
 const arrowSvgEl = document.querySelector(".overlay.arrows");
 const arrowLinesEl = document.getElementById("arrow-lines");
 const logEl = document.getElementById("log");
@@ -175,11 +178,30 @@ function slotEl(side, slot) {
   return rowEl[side].children[slot];
 }
 
+function pointIn(el, x, y) {
+  const r = el.getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+
+// The badges/name/stats markup every card shows, board Unit or shop/hand
+// offer alike -- shared so a hand card (built fresh each render, not one of
+// the fixed Player/Opposing slots below) renders identically to a board one.
+function cardContentHtml(unit) {
+  const badges = unit.keywords
+    .map((k) => `<span class="badge ${k}" title="${k}">${KEYWORD_BADGE[k] ?? "?"}</span>`)
+    .join("");
+  return `
+    <div class="badges">${badges}</div>
+    <div class="name">${unit.name}</div>
+    <div class="stats"><span class="atk">${unit.attack}</span><span class="sep">/</span><span class="hp">${Math.max(unit.health, 0)}</span></div>
+  `;
+}
+
 // `opts.offer` (Prep, opposing row): a shop offer rather than a Unit -- adds
-// the freeze toggle and, when frozen, a highlight. `opts.sellable` (Prep,
-// player row): the board a run is built on -- adds the sell button. Neither
-// applies during a fight, so plain `renderUnit(side, slot, unit)` (opts
-// defaulting to {}) is what the fight viewer still calls.
+// the freeze toggle and, when frozen, a highlight. Neither applies during a
+// fight, so plain `renderUnit(side, slot, unit)` (opts defaulting to {}) is
+// what the fight viewer still calls. Selling is a drag onto the sell zone
+// (see Shop.onPointerUp), not a per-card affordance here.
 function renderUnit(side, slot, unit, opts = {}) {
   const el = slotEl(side, slot);
   const content = el.querySelector(".content");
@@ -198,16 +220,7 @@ function renderUnit(side, slot, unit, opts = {}) {
     content.innerHTML = "";
     return;
   }
-  const badges = unit.keywords
-    .map((k) => `<span class="badge ${k}" title="${k}">${KEYWORD_BADGE[k] ?? "?"}</span>`)
-    .join("");
-  const corner = opts.sellable ? `<button class="sell-btn" data-action="sell" title="Sell">×</button>` : "";
-  content.innerHTML = `
-    <div class="badges">${badges}</div>
-    <div class="name">${unit.name}</div>
-    <div class="stats"><span class="atk">${unit.attack}</span><span class="sep">/</span><span class="hp">${Math.max(unit.health, 0)}</span></div>
-    ${corner}
-  `;
+  content.innerHTML = cardContentHtml(unit);
 }
 
 // `board` is a plain bg-sim Board (`{player: {slots}, opposing: {slots}}`) --
@@ -564,12 +577,20 @@ class Player {
 // Shop: the Prep Phase. The opposing row is repurposed as the shop while
 // it's on screen (relabeled "Shop", swapped back to "Opposing party" the
 // moment a fight starts); the player row is the actual run -- it persists
-// round to round, the same cards carrying over, only buy/sell/reorder
-// touching it. Every action (buy, sell, reroll, freeze, upgrade) is told to
-// bg-wasm and the *entire next RunState* comes back -- this class never
-// computes gold, pool counts or a shop draw itself, only renders whatever
-// RunState it was just handed.
+// round to round, the same cards carrying over. Every action (buy, play,
+// sell, reroll, freeze, upgrade) is told to bg-wasm and the *entire next
+// RunState* comes back -- this class never computes gold, pool counts or a
+// shop draw itself, only renders whatever RunState it was just handed.
+//
+// Every action is a drag, and only one: a shop offer dragged onto the hand
+// is a buy, a hand card dragged onto the board is a play (the only thing a
+// hand card supports), a board card dragged onto the sell zone is a sell,
+// and a board card dragged onto another board slot is a reorder. One
+// Pointer Events code path (mouse, touch and pen alike) drives all four,
+// distinguished by `this.drag.kind`.
 // ---------------------------------------------------------------------------
+
+const playerRankEl = document.getElementById("player-rank");
 
 class Shop {
   constructor(run, roster, rosterJson, onFight) {
@@ -581,9 +602,8 @@ class Shop {
     this.msgTimer = null;
 
     for (let i = 0; i < SLOTS; i++) {
-      slotEl("Opposing", i).addEventListener("click", (e) => this.onOfferClick(e, i));
-      slotEl("Player", i).addEventListener("click", (e) => this.onBoardClick(e, i));
-      slotEl("Player", i).addEventListener("pointerdown", (e) => this.onPointerDown(e, i));
+      slotEl("Opposing", i).addEventListener("pointerdown", (e) => this.onPointerDown(e, "shop", i));
+      slotEl("Player", i).addEventListener("pointerdown", (e) => this.onPointerDown(e, "board", i));
     }
     rerollBtn.addEventListener("click", () => this.reroll());
     freezeBtn.addEventListener("click", () => this.toggleFreeze());
@@ -623,11 +643,30 @@ class Shop {
       renderUnit("Opposing", i, offerUnit, {
         offer: offer ? { frozen: offer.frozen, affordable: this.run.gold >= 3 } : null,
       });
+      slotEl("Opposing", i).classList.toggle("draggable", !!offer);
 
       const boardUnit = this.run.board.slots[i];
-      renderUnit("Player", i, boardUnit, { sellable: !!boardUnit });
+      renderUnit("Player", i, boardUnit, {});
       slotEl("Player", i).classList.toggle("draggable", !!boardUnit);
     }
+    this.renderHand();
+  }
+
+  // Hand cards aren't fixed Slots the way board/shop rows are -- there's no
+  // engine concept of a hand position, so the row is just rebuilt fresh from
+  // `run.hand` each render, one `.unit` per card, no empty placeholders.
+  renderHand() {
+    handRowEl.innerHTML = "";
+    this.run.hand.forEach((unit, i) => {
+      const el = document.createElement("div");
+      el.className = "unit draggable";
+      const content = document.createElement("div");
+      content.className = "content";
+      content.innerHTML = cardContentHtml(unit);
+      el.appendChild(content);
+      el.addEventListener("pointerdown", (e) => this.onPointerDown(e, "hand", i));
+      handRowEl.appendChild(el);
+    });
   }
 
   showMessage(text) {
@@ -661,6 +700,10 @@ class Shop {
     this.callWithRoster(shopBuy, offer);
   }
 
+  play(handIndex) {
+    this.callWithRoster(shopPlay, handIndex);
+  }
+
   sell(slot) {
     this.callWithRoster(shopSell, slot);
   }
@@ -677,35 +720,22 @@ class Shop {
     this.call(shopUpgradeTavern);
   }
 
-  onOfferClick(e, i) {
-    if (this.run.shop[i]) this.buy(i);
-  }
-
-  onBoardClick(e, i) {
-    if (e.target.closest(".sell-btn")) this.sell(i);
-  }
-
-  // Drag-to-reorder the board -- the same Pointer Events pattern 0.2 built
-  // for this (one code path for mouse, touch and pen), now permuting
-  // `run.board.slots` (bg-wasm's `[Option<Unit>; 8]`) directly instead of a
-  // client-side roster array. Still never needs bg-sim's packing rule: a
-  // reorder only permutes Units already there, so `slots` stays exactly
-  // 8 long and left-packed throughout (splice removes one, then reinserts
-  // that same one -- length is never actually disturbed).
-  onPointerDown(e, slot) {
-    // A press starting on the sell button is a click, not a drag -- letting
-    // it start a drag anyway means onPointerUp's render() replaces the
-    // button's own DOM node (a fresh .content) before the browser's
-    // following click event can land on it, so the sell silently never
-    // fires.
-    if (e.target.closest(".sell-btn")) return;
-    if (!this.run.board.slots[slot]) return;
-    const el = slotEl("Player", slot);
+  // The one drag engine behind buy/play/sell/reorder -- the same Pointer
+  // Events pattern 0.2 built for board reorder (one code path for mouse,
+  // touch and pen), now generalized across the three rows a card can start
+  // a drag from. `kind` plus `fromIndex` is enough to know both what's being
+  // dragged and, on drop, which engine call (if any) it means.
+  onPointerDown(e, kind, index) {
+    if (kind === "shop" && !this.run.shop[index]) return;
+    if (kind === "board" && !this.run.board.slots[index]) return;
+    if (kind === "hand" && !this.run.hand[index]) return;
+    const el = kind === "shop" ? slotEl("Opposing", index) : kind === "board" ? slotEl("Player", index) : e.currentTarget;
     el.setPointerCapture(e.pointerId);
     const rect = el.getBoundingClientRect();
     this.drag = {
+      kind,
       pointerId: e.pointerId,
-      fromSlot: slot,
+      fromIndex: index,
       el,
       grabX: e.clientX - rect.left,
       grabY: e.clientY - rect.top,
@@ -728,23 +758,35 @@ class Shop {
     const dx = e.clientX - this.drag.grabX - this.drag.originLeft;
     const dy = e.clientY - this.drag.grabY - this.drag.originTop;
     this.drag.el.style.transform = `translate(${dx}px, ${dy}px)`;
-    this.highlightDropTarget(this.slotAtPoint(e.clientX, e.clientY));
+    this.highlightDrop(e.clientX, e.clientY);
   }
 
   onPointerUp(e) {
     if (!this.drag) return;
-    const over = this.slotAtPoint(e.clientX, e.clientY);
-    this.drag.el.releasePointerCapture(this.drag.pointerId);
-    this.drag.el.classList.remove("dragging");
-    this.drag.el.style.transform = "";
-    this.highlightDropTarget(null);
+    const { kind, fromIndex, el, pointerId } = this.drag;
+    el.releasePointerCapture(pointerId);
+    el.classList.remove("dragging");
+    el.style.transform = "";
+    this.clearDropHighlights();
 
-    const occupied = this.boardOccupiedCount();
-    if (over !== null && over !== this.drag.fromSlot && over < occupied) {
-      const slots = this.run.board.slots;
-      const [moved] = slots.splice(this.drag.fromSlot, 1);
-      slots.splice(over, 0, moved);
+    if (kind === "board") {
+      if (pointIn(sellZoneEl, e.clientX, e.clientY)) {
+        this.sell(fromIndex);
+      } else {
+        const over = this.boardSlotAtPoint(e.clientX, e.clientY);
+        const occupied = this.boardOccupiedCount();
+        if (over !== null && over !== fromIndex && over < occupied) {
+          const slots = this.run.board.slots;
+          const [moved] = slots.splice(fromIndex, 1);
+          slots.splice(over, 0, moved);
+        }
+      }
+    } else if (kind === "shop" && pointIn(handRankEl, e.clientX, e.clientY)) {
+      this.buy(fromIndex);
+    } else if (kind === "hand" && pointIn(playerRankEl, e.clientX, e.clientY)) {
+      this.play(fromIndex);
     }
+
     this.drag = null;
     this.render(); // also the snap-back, when the drop wasn't a valid target
   }
@@ -753,25 +795,40 @@ class Shop {
     return this.run.board.slots.filter((u) => u !== null).length;
   }
 
-  slotAtPoint(x, y) {
-    // Excludes the card being dragged: its own rect has been CSS-transformed
-    // to follow the pointer, so it visually sits wherever the pointer is --
-    // testing it too would always match slot 0 against itself before ever
-    // reaching the actual card underneath.
+  // Excludes the card being dragged: its own rect has been CSS-transformed
+  // to follow the pointer, so it visually sits wherever the pointer is --
+  // testing it too would always match its own slot against itself before
+  // ever reaching the actual card underneath.
+  boardSlotAtPoint(x, y) {
     const occupied = this.boardOccupiedCount();
     for (let i = 0; i < occupied; i++) {
-      if (i === this.drag?.fromSlot) continue;
-      const r = slotEl("Player", i).getBoundingClientRect();
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
+      if (this.drag?.kind === "board" && i === this.drag.fromIndex) continue;
+      if (pointIn(slotEl("Player", i), x, y)) return i;
     }
     return null;
   }
 
-  highlightDropTarget(slot) {
-    const occupied = this.boardOccupiedCount();
-    for (let i = 0; i < occupied; i++) {
-      slotEl("Player", i).classList.toggle("drop-target", i === slot && i !== this.drag?.fromSlot);
+  highlightDrop(x, y) {
+    if (this.drag.kind === "board") {
+      const over = this.boardSlotAtPoint(x, y);
+      const occupied = this.boardOccupiedCount();
+      for (let i = 0; i < occupied; i++) {
+        slotEl("Player", i).classList.toggle("drop-target", i === over && i !== this.drag.fromIndex);
+      }
+      sellZoneEl.classList.toggle("drop-target", pointIn(sellZoneEl, x, y));
+    } else if (this.drag.kind === "shop") {
+      handRankEl.classList.toggle("drop-target", pointIn(handRankEl, x, y));
+    } else if (this.drag.kind === "hand") {
+      playerRankEl.classList.toggle("drop-target", pointIn(playerRankEl, x, y));
     }
+  }
+
+  clearDropHighlights() {
+    const occupied = this.boardOccupiedCount();
+    for (let i = 0; i < occupied; i++) slotEl("Player", i).classList.remove("drop-target");
+    sellZoneEl.classList.remove("drop-target");
+    handRankEl.classList.remove("drop-target");
+    playerRankEl.classList.remove("drop-target");
   }
 
   // end_turn fires EndOfTurn abilities (a Unit can grow at the close of
@@ -793,6 +850,7 @@ import init, {
   resolve as resolveWasm,
   start_run as startRunWasm,
   shop_buy as shopBuy,
+  shop_play as shopPlay,
   shop_sell as shopSell,
   shop_reroll as shopReroll,
   shop_toggle_freeze as shopToggleFreeze,
@@ -836,6 +894,7 @@ async function boot() {
     shopControlsEl.hidden = false;
     playbackControlsEl.hidden = true;
     runOverControlsEl.hidden = true;
+    handRankEl.hidden = false;
     shopMessageEl.textContent = "";
     shop.render();
   }
@@ -852,6 +911,7 @@ async function boot() {
     opposingRankLabelEl.textContent = "Opposing party";
     shopControlsEl.hidden = true;
     playbackControlsEl.hidden = false;
+    handRankEl.hidden = true;
   }
 
   // "Continue": tell the run what the fight decided, then either the run is
@@ -877,6 +937,7 @@ async function boot() {
     shopControlsEl.hidden = true;
     playbackControlsEl.hidden = true;
     runOverControlsEl.hidden = false;
+    handRankEl.hidden = true;
     runOverTextEl.textContent =
       shop.run.wins >= 2
         ? `Run won! Final record ${shop.run.wins}-${shop.run.losses}.`

@@ -44,6 +44,9 @@ pub const LOSSES_TO_END_RUN: u8 = 2;
 const BUY_COST: u32 = 3;
 const SELL_REFUND: u32 = 1;
 const REROLL_COST: u32 = 1;
+/// Placeholder, same spirit as the gold/reroll numbers above -- tunable once
+/// the loop can be felt.
+const HAND_SLOTS: usize = 6;
 
 /// How many copies of a Tier's Units start in the pool. Tapered so early,
 /// cheap Units are plentiful and late, expensive ones are scarce -- the same
@@ -166,10 +169,11 @@ pub struct ShopSlot {
 }
 
 /// Everything a run needs to remember between rounds: gold, Tavern Tier, the
-/// board being built, the shop on offer, the pool it draws from, and the
-/// running best-of-3 score.
+/// hand and board being built, the shop on offer, the pool it draws from, and
+/// the running best-of-3 score.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunState {
+    pub hand: Vec<Unit>,
     pub board: Party,
     pub gold: u32,
     pub tavern_tier: u8,
@@ -185,9 +189,11 @@ pub struct RunState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShopError {
     NotEnoughGold,
+    HandFull,
     BoardFull,
     SlotEmpty,
     InvalidOffer,
+    InvalidHandIndex,
     MaxTavernTier,
 }
 
@@ -195,9 +201,11 @@ impl std::fmt::Display for ShopError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
             ShopError::NotEnoughGold => "not enough gold",
+            ShopError::HandFull => "hand is full",
             ShopError::BoardFull => "board is full",
             ShopError::SlotEmpty => "slot is empty",
             ShopError::InvalidOffer => "no such shop offer",
+            ShopError::InvalidHandIndex => "no such hand card",
             ShopError::MaxTavernTier => "already at the highest Tavern Tier",
         };
         f.write_str(msg)
@@ -218,6 +226,7 @@ impl RunState {
     /// full pool, and the first shop already drawn.
     pub fn new(seed: Seed, roster: &[UnitDef]) -> Self {
         let mut state = RunState {
+            hand: Vec::new(),
             board: Party::new(),
             gold: gold_for_round(1),
             tavern_tier: 1,
@@ -334,10 +343,11 @@ impl RunState {
         }
     }
 
-    /// Buy an offer onto the first open board Slot.
+    /// Buy an offer into hand. Doesn't touch the board -- that's `play`'s job,
+    /// once the player decides whether and where to deploy it.
     pub fn buy(&mut self, roster: &[UnitDef], offer: usize) -> Result<(), ShopError> {
-        if self.board.len() >= SLOTS {
-            return Err(ShopError::BoardFull);
+        if self.hand.len() >= HAND_SLOTS {
+            return Err(ShopError::HandFull);
         }
         if self.gold < BUY_COST {
             return Err(ShopError::NotEnoughGold);
@@ -348,14 +358,49 @@ impl RunState {
 
         self.gold -= BUY_COST;
         self.shop.remove(offer);
+
+        // OnBuy fires on a lone scratch Party holding just this Unit -- the
+        // fire_own/fire_broadcast helpers below all key off a Slot on
+        // self.board, which this Unit isn't in yet. A hand Unit has no
+        // neighbours and nothing to broadcast to, so Adjacent/AllFriendly
+        // correctly find nothing beyond itself here.
+        let mut scratch = Party::new();
+        scratch.put(0, unit);
+        let mut board = Board::new(scratch, Party::new());
+        let mut log = Vec::new();
+        let mut rng = self.rng(Domain::Effect);
+        abilities::fire_own(
+            &mut board,
+            roster,
+            Side::Player,
+            0,
+            Trigger::OnBuy,
+            self.tavern_tier,
+            &mut log,
+            &mut rng,
+            &mut self.gold,
+        );
+        let unit = board.player.take(0).expect("just put there");
+
+        self.hand.push(unit);
+        Ok(())
+    }
+
+    /// Play a hand Unit onto the first open board Slot -- the only thing a
+    /// hand Unit can do. Its exact final position is a board-to-board drag
+    /// away afterward, the same reorder every other board Unit already uses.
+    pub fn play(&mut self, roster: &[UnitDef], hand_index: usize) -> Result<(), ShopError> {
+        if self.board.len() >= SLOTS {
+            return Err(ShopError::BoardFull);
+        }
+        if hand_index >= self.hand.len() {
+            return Err(ShopError::InvalidHandIndex);
+        }
+        let unit = self.hand.remove(hand_index);
         let empty = (0..SLOTS)
             .find(|&i| self.board.get(i).is_none())
             .expect("checked board.len() < SLOTS above");
         self.board.put(empty, unit);
-        // Buying is both moments `units::Trigger` names separately: bought
-        // into hand (OnBuy) and played into a Slot (Battlecry). This engine
-        // has no hand step in between, so both fire together, right here.
-        self.fire_own(roster, empty, Trigger::OnBuy);
         self.fire_own(roster, empty, Trigger::Battlecry);
         self.fire_broadcast(roster, empty, Trigger::AfterFriendlyPlayed);
         Ok(())
@@ -494,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    fn buying_fires_battlecry_not_just_onbuy() {
+    fn battlecry_fires_on_play_not_on_buy() {
         use crate::units::{Ability, Effect, Selector};
 
         let mut caster = def("caster", 1);
@@ -516,9 +561,15 @@ mod tests {
         }];
         run.buy(&roster, 0).unwrap();
         assert_eq!(
+            run.hand[0].attack, 1,
+            "Battlecry hasn't fired yet -- it's only in hand"
+        );
+
+        run.play(&roster, 0).unwrap();
+        assert_eq!(
             run.board.get(0).unwrap().attack,
             6,
-            "Battlecry fired the moment buying placed it on the board"
+            "Battlecry fired the moment playing placed it on the board"
         );
     }
 
@@ -551,6 +602,9 @@ mod tests {
             reserved,
             "buying an already-reserved offer doesn't touch the pool again"
         );
+        assert_eq!(run.hand.len(), 1);
+
+        run.play(&roster, 0).unwrap();
         assert_eq!(run.board.len(), 1);
 
         run.sell(&roster, 0).unwrap();
@@ -630,11 +684,11 @@ mod tests {
     }
 
     #[test]
-    fn buying_fails_on_a_full_board() {
+    fn buying_fails_on_a_full_hand() {
         let roster = vec![def("only", 1)];
         let mut run = RunState::new(Seed(5), &roster);
         run.gold = 1000;
-        for i in 0..SLOTS {
+        for i in 0..HAND_SLOTS {
             run.shop = vec![ShopSlot {
                 def: DefId::new("only"),
                 frozen: false,
@@ -646,7 +700,30 @@ mod tests {
             def: DefId::new("only"),
             frozen: false,
         }];
-        assert_eq!(run.buy(&roster, 0), Err(ShopError::BoardFull));
+        assert_eq!(run.buy(&roster, 0), Err(ShopError::HandFull));
+    }
+
+    #[test]
+    fn playing_fails_on_a_full_board() {
+        let roster = vec![def("only", 1)];
+        let mut run = RunState::new(Seed(5), &roster);
+        run.gold = 1000;
+        for i in 0..SLOTS {
+            run.shop = vec![ShopSlot {
+                def: DefId::new("only"),
+                frozen: false,
+            }];
+            run.buy(&roster, 0)
+                .unwrap_or_else(|e| panic!("slot {i}: {e}"));
+            run.play(&roster, 0)
+                .unwrap_or_else(|e| panic!("slot {i}: {e}"));
+        }
+        run.shop = vec![ShopSlot {
+            def: DefId::new("only"),
+            frozen: false,
+        }];
+        run.buy(&roster, 0).unwrap();
+        assert_eq!(run.play(&roster, 0), Err(ShopError::BoardFull));
     }
 
     #[test]
@@ -703,8 +780,10 @@ mod tests {
                 frozen: false,
             },
         ];
-        run.buy(&roster, 0).unwrap(); // "a" into slot 0
-        run.buy(&roster, 0).unwrap(); // "b" into slot 1 ("a"'s offer is gone, "b" is now offer 0)
+        run.buy(&roster, 0).unwrap(); // "a" into hand
+        run.buy(&roster, 0).unwrap(); // "b" into hand ("a"'s offer is gone, "b" is now offer 0)
+        run.play(&roster, 0).unwrap(); // "a" into board slot 0
+        run.play(&roster, 0).unwrap(); // "b" into board slot 1
 
         // Nothing about the fight itself matters here -- only what the party
         // looked like going in. "a" damaged and "b" dead is exactly the kind

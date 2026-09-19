@@ -81,12 +81,27 @@ pub fn start_run(roster_json: &str, seed: u64) -> Result<String, JsError> {
     run_json(&run)
 }
 
-/// Buy shop offer `offer` (0-based) onto the first open board Slot.
+/// Buy shop offer `offer` (0-based) into hand.
 #[wasm_bindgen]
 pub fn shop_buy(roster_json: &str, run_json_in: &str, offer: usize) -> Result<String, JsError> {
     let roster = parse_roster_json(roster_json)?;
     let mut run = parse_run(run_json_in)?;
     run.buy(&roster, offer)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+    run_json(&run)
+}
+
+/// Play the hand Unit at `hand_index` (0-based) onto the first open board
+/// Slot.
+#[wasm_bindgen]
+pub fn shop_play(
+    roster_json: &str,
+    run_json_in: &str,
+    hand_index: usize,
+) -> Result<String, JsError> {
+    let roster = parse_roster_json(roster_json)?;
+    let mut run = parse_run(run_json_in)?;
+    run.play(&roster, hand_index)
         .map_err(|e| JsError::new(&e.to_string()))?;
     run_json(&run)
 }
