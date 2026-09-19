@@ -36,33 +36,6 @@ function otherSide(side) {
   return side === "Player" ? "Opposing" : "Player";
 }
 
-// One entry per Struck/Died/etc. in a Beat, carrying only what a cue needs to
-// animate -- never enough to derive a rule from.
-function narrate(cue) {
-  switch (cue.kind) {
-    case "hit": {
-      const verb = cue.answering ? "strikes back at" : "strikes";
-      return `  ${cue.attackerSide.toLowerCase()} slot ${cue.attackerSlot + 1} ${verb} ${cue.targetSide.toLowerCase()} slot ${cue.targetSlot + 1} for ${cue.damage}`;
-    }
-    case "absorb": {
-      // The absorb cue stands in for the hit line entirely -- bg-sim merges
-      // the blow and its absorption into one Event pair, so this is the only
-      // narration this blow gets. It needs the same who-did-what a hit line
-      // carries, or a reader can't tell what was absorbed.
-      const verb = cue.answering ? "strikes back at" : "strikes";
-      return `  ${cue.attackerSide.toLowerCase()} slot ${cue.attackerSlot + 1} ${verb} ${cue.targetSide.toLowerCase()} slot ${cue.targetSlot + 1}, absorbed by its shield`;
-    }
-    case "died":
-      return `  ${cue.side.toLowerCase()} slot ${cue.slot + 1} (${cue.name}) dies`;
-    case "reborn":
-      return `  ${cue.side.toLowerCase()} slot ${cue.slot + 1} returns as ${cue.name} with 1 health`;
-    case "compact":
-      return `  the ${cue.side.toLowerCase()} party closes ranks`;
-    default:
-      return "";
-  }
-}
-
 // Turn the flat Event log into one step per Beat (a list of narration cues,
 // plus that Beat's already-resolved Board) and a final "ended" step. A
 // Struck/StruckBack is immediately followed by its ShieldAbsorbed when one
@@ -129,8 +102,6 @@ const handRowEl = document.getElementById("hand-row");
 const sellZoneEl = document.getElementById("sell-zone");
 const arrowSvgEl = document.querySelector(".overlay.arrows");
 const arrowLinesEl = document.getElementById("arrow-lines");
-const logEl = document.getElementById("log");
-const logToggleEl = document.getElementById("log-toggle");
 const outcomeEl = document.getElementById("outcome");
 const beatValueEl = document.getElementById("beat-value");
 const resultValueEl = document.getElementById("result-value");
@@ -291,14 +262,6 @@ function shimmerRank(side) {
   void row.offsetWidth;
   row.classList.add("closed-ranks");
   setTimeout(() => row.classList.remove("closed-ranks"), 550);
-}
-
-function logLine(text, cls, current) {
-  const div = document.createElement("div");
-  div.className = "line" + (cls ? ` ${cls}` : "") + (current ? " current" : "");
-  div.textContent = text;
-  logEl.appendChild(div);
-  logEl.scrollTop = logEl.scrollHeight;
 }
 
 // ---------------------------------------------------------------------------
@@ -494,13 +457,12 @@ class Player {
   }
 
   // The one place that renders a position. Everything is rebuilt fresh from
-  // `steps` each call -- board, log, readouts, overlay -- so jumping to any
-  // index by any path (stepping, replaying, skipping) always lands on
-  // exactly the same result.
+  // `steps` each call -- board, readouts, overlay -- so jumping to any index
+  // by any path (stepping, replaying, skipping) always lands on exactly the
+  // same result.
   revealStep(index) {
     this.index = index;
     renderBoard(this.boardAfter[index]);
-    this.rebuildLog();
     this.updateReadouts();
 
     // The overlay belongs to whichever Beat most recently happened, even
@@ -521,21 +483,6 @@ class Player {
       }
     }
     this.updateButtons();
-  }
-
-  rebuildLog() {
-    logEl.innerHTML = "";
-    const committed = this.steps.slice(0, this.index);
-    committed.forEach((step, i) => {
-      const isLast = i === committed.length - 1;
-      if (step.kind === "beat") {
-        logLine(`-- beat ${step.beat} --`, "beat", isLast);
-        for (const cue of step.cues) logLine(narrate(cue), null, isLast);
-      } else {
-        logLine(`== ${step.outcome} after ${step.beats} beats ==`, "beat", isLast);
-      }
-    });
-    logEl.scrollTop = logEl.scrollHeight;
   }
 
   updateReadouts() {
@@ -928,7 +875,6 @@ async function boot() {
     player?.stopAuto();
     player = null;
     pendingResolutionJson = null;
-    logEl.innerHTML = "";
     outcomeEl.textContent = "";
     beatValueEl.textContent = "—";
     resultValueEl.textContent = "—";
@@ -955,6 +901,12 @@ async function boot() {
     shopControlsEl.hidden = true;
     playbackControlsEl.hidden = false;
     handRankEl.hidden = true;
+    // A fight is meant to be watched, not stepped through by hand -- it
+    // plays itself out at the chosen speed the moment it starts. Prev/Next
+    // still work mid-fight (they pause the timer, same as always), for
+    // rewatching a beat or slowing down to read one; they're a way to
+    // interrupt the fight, not the main way to see it.
+    player.play();
   }
 
   // "Continue": tell the run what the fight decided, then either the run is
@@ -994,10 +946,6 @@ async function boot() {
   skipBtn.addEventListener("click", () => player?.skipToEnd());
   continueBtn.addEventListener("click", () => afterFight());
   newRunBtn.addEventListener("click", () => newRun());
-  logToggleEl.addEventListener("click", () => {
-    const expanded = logToggleEl.getAttribute("aria-expanded") === "true";
-    logToggleEl.setAttribute("aria-expanded", String(!expanded));
-  });
 
   newRun();
 }

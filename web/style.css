@@ -160,13 +160,14 @@ body {
   position: absolute;
   top: 1ch;
   right: 1ch;
-  width: 30vw;
+  /* A fixed letter-width budget the controls wrap inside, not a fixed share
+     of the viewport -- it used to claim 30vw regardless of how little was
+     in it, wide enough to sit over the board on a lot of viewport shapes.
+     26ch fits two buttons per row; `.controls`' own flex-wrap (below)
+     handles the rest. */
+  width: 26ch;
+  max-width: 44vw;
   min-width: 17ch;
-  /* Room for the hand tray anchored below it (see #hand-rank) -- both are
-     independently anchored, but a hand card tall enough to read still has
-     to not sit under this panel's own scroll area. */
-  max-height: calc(100dvh - 2ch - 12vh - 3ch);
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -656,67 +657,6 @@ button.transport.active { border-color: var(--indigo); color: var(--indigo); bac
   .unit, .dmg-label, .row.closed-ranks::after { transition: none; animation: none; }
   .unit.critical { border-color: var(--crimson); }
 }
-
-/* --------------------------------------------------------------- dispatch */
-
-.dispatch {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-  box-shadow: 0 4px 16px -4px rgb(0 0 0 / 12%);
-}
-
-/* A real button, not a label div -- it's what minimizes the log. Styled to
-   still read as the same small uppercase heading the rest of the sidebar's
-   sections use. */
-.dispatch .dispatch-label {
-  all: unset;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  font-family: var(--font-data);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 6px;
-}
-
-.dispatch .dispatch-label:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
-
-.dispatch .chevron { transition: transform 150ms ease; }
-.dispatch .dispatch-label[aria-expanded="false"] .chevron { transform: rotate(-90deg); }
-
-/* Collapsed: the log's content goes away, but the sidebar itself (not this
-   panel) is still what scrolls -- no separate scroll region nested inside
-   another, which is why .lines carries no max-height/overflow of its own. */
-.dispatch .dispatch-label[aria-expanded="false"] + .lines { display: none; }
-
-.dispatch .lines {
-  font-family: var(--font-data);
-  font-size: 12px;
-  line-height: 1.65;
-  color: var(--ink-dim);
-}
-
-.dispatch .lines .line.current { color: var(--ink); }
-
-.dispatch .lines .line.beat {
-  color: var(--ink);
-  font-weight: 700;
-  margin-top: 8px;
-  padding-top: 4px;
-  border-top: 1px dashed var(--line);
-}
-
-.dispatch .lines .line.beat:first-child { border-top: none; margin-top: 0; padding-top: 0; }
 
 /* ---------------------------------------------------------------- outcome */
 

@@ -37,10 +37,11 @@
   </div>
 
   <!-- Everything that isn't the play field itself: the beat/result readout,
-       controls, the outcome banner, and the log named after this whole
-       thing -- Beat Ledger. Floating cards anchored top-right, independent
-       of the playfield's own box, so neither ever competes with the other
-       for width. -->
+       controls, the outcome banner. Floating, anchored top-right,
+       independent of the playfield's own box, so neither ever competes with
+       the other for width -- sized to its own content, not a fixed share of
+       the screen, so it never claims more room than these few fields and
+       buttons actually need. -->
   <aside class="info">
     <div class="readout">
       <div class="field">
@@ -96,14 +97,6 @@
 
     <div id="outcome"></div>
     <div id="shop-message" role="status"></div>
-
-    <section class="dispatch">
-      <button class="dispatch-label" id="log-toggle" aria-expanded="true" aria-controls="log">
-        <span>Beat Ledger</span>
-        <span class="chevron" aria-hidden="true">▾</span>
-      </button>
-      <div class="lines" id="log"></div>
-    </section>
   </aside>
 
   <!-- A small floating tray, not another rank in the playfield's own column
